@@ -1,0 +1,273 @@
+import React, { useState } from "react";
+import {
+  X,
+  User,
+  Crown,
+  Wand2,
+  Sword,
+  Shield,
+  Moon,
+  Skull,
+  LogOut,
+  Sparkles,
+  BookMarked,
+  MessageSquare,
+  Database,
+  Check,
+  Flame,
+} from "lucide-react";
+import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
+
+interface UserProfileModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  user: UserProfile;
+  onUpdateUser: (updated: UserProfile) => void;
+  onLogout: () => void;
+  savedCardsCount: number;
+  messagesCount: number;
+  rulesCount: number;
+}
+
+const SYSTEMS: RpgSystem[] = [
+  "Dungeons & Dragons (D&D)",
+  "Pathfinder",
+  "Tormenta20 (T20)",
+  "Vampiro: A Máscara (Storyteller)",
+  "Call of Cthulhu",
+  "GURPS",
+  "Savage Worlds",
+  "Fate Core",
+  "Cyberpunk Red",
+  "Old Dragon",
+  "Outro / não especificar",
+];
+
+const AVATARS = [
+  { id: "wizard", label: "Mago Arcanista", icon: Wand2, color: "text-[#DFB56C] bg-[#DFB56C]/10 border-[#DFB56C]/40" },
+  { id: "master", label: "Mestre da Masmorra", icon: Crown, color: "text-[#B08635] bg-[#B08635]/15 border-[#B08635]/50" },
+  { id: "warrior", label: "Guerreiro / Paladino", icon: Sword, color: "text-[#C4645A] bg-[#7A2E27]/20 border-[#7A2E27]" },
+  { id: "cleric", label: "Clérigo da Luz", icon: Shield, color: "text-[#8DAE8F] bg-[#4B6B4E]/15 border-[#4B6B4E]/40" },
+  { id: "rogue", label: "Ladino da Noite", icon: Moon, color: "text-[#A79C82] bg-[#38352A]/40 border-[#5C5641]" },
+  { id: "warlock", label: "Bruxo do Pacto", icon: Skull, color: "text-[#C4645A] bg-[#7A2E27]/30 border-[#C4645A]" },
+];
+
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
+  isOpen,
+  onClose,
+  user,
+  onUpdateUser,
+  onLogout,
+  savedCardsCount,
+  messagesCount,
+  rulesCount,
+}) => {
+  const isAdmin = isUserAdmin(user);
+  const [name, setName] = useState(user.name);
+  const [role, setRole] = useState<UserRole>(user.role || (user.isAdmin ? "Administrador (ADM)" : "Mestre da Mesa"));
+  const [favoriteSystem, setFavoriteSystem] = useState(user.favoriteSystem || "Dungeons & Dragons (D&D)");
+  const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "wizard");
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const isAdminRole = role === "Administrador (ADM)" || (role as string) === "Admin";
+    const updated: UserProfile = {
+      ...user,
+      name: name.trim() || user.name,
+      role,
+      isAdmin: isAdminRole ? true : Boolean(user.isAdmin && role !== "Jogador Explorador"),
+      favoriteSystem,
+      avatar: selectedAvatar,
+    };
+    onUpdateUser(updated);
+    setSavedSuccess(true);
+    setTimeout(() => {
+      setSavedSuccess(false);
+      onClose();
+    }, 600);
+  };
+
+  const getAvatarIcon = (id: string) => {
+    const found = AVATARS.find((a) => a.id === id);
+    if (!found) return Wand2;
+    return found.icon;
+  };
+
+  const CurrentAvatarIcon = getAvatarIcon(selectedAvatar);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
+      <div className="w-full max-w-lg bg-[#1D1B14] border border-[#38352A] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-4 sm:p-5 bg-[#15140F] border-b border-[#38352A] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#7A2E27]/30 border border-[#7A2E27] flex items-center justify-center text-[#DFB56C]">
+              <CurrentAvatarIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-serif font-bold text-lg sm:text-xl text-[#EFE8D8] flex items-center gap-2 flex-wrap">
+                <span>Ficha do Conjurador</span>
+                {isAdmin && (
+                  <span className="text-[10px] font-mono bg-[#DFB56C]/20 border border-[#DFB56C]/50 text-[#DFB56C] px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Crown className="w-3 h-3" /> ADM (Banco de Dados)
+                  </span>
+                )}
+                {user.isGuest && (
+                  <span className="text-[10px] font-mono bg-[#38352A] text-[#A79C82] px-1.5 py-0.5 rounded">
+                    Convidado
+                  </span>
+                )}
+              </h2>
+              <p className="text-xs font-mono text-[#A79C82]">{user.email}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#38352A] rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Scroll */}
+        <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-3 gap-2 p-3 bg-[#15140F] border border-[#38352A] rounded-xl text-center">
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-mono font-bold text-[#DFB56C]">{savedCardsCount}</span>
+              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
+                <BookMarked className="w-3 h-3 text-[#B08635]" /> Grimório
+              </span>
+            </div>
+            <div className="flex flex-col items-center border-x border-[#38352A]">
+              <span className="text-lg font-mono font-bold text-[#8DAE8F]">
+                {isAdmin ? rulesCount : "🔒 ADM"}
+              </span>
+              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
+                <Database className="w-3 h-3 text-[#8DAE8F]" /> Banco DB
+              </span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-lg font-mono font-bold text-[#C4645A]">{messagesCount}</span>
+              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
+                <MessageSquare className="w-3 h-3 text-[#C4645A]" /> Consultas
+              </span>
+            </div>
+          </div>
+
+          {/* Form Fields */}
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+              Nome do Aventureiro / Título
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3.5 text-sm text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                Papel na Mesa
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as any)}
+                className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
+              >
+                <option value="Administrador (ADM)">👑 Administrador (ADM - Acesso ao DB)</option>
+                <option value="Mestre da Mesa">Mestre da Mesa</option>
+                <option value="Jogador Explorador">Jogador Explorador</option>
+                <option value="Criador de Conteúdo">Criador de Homebrews</option>
+                <option value="Guardião do Saber">Guardião do Saber</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                Sistema Preferido
+              </label>
+              <select
+                value={favoriteSystem}
+                onChange={(e) => setFavoriteSystem(e.target.value as RpgSystem)}
+                className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
+              >
+                {SYSTEMS.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Avatar selector */}
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2">
+              Brasão Arcano
+            </label>
+            <div className="grid grid-cols-6 gap-2">
+              {AVATARS.map((av) => {
+                const IconComp = av.icon;
+                const isSel = selectedAvatar === av.id;
+                return (
+                  <button
+                    key={av.id}
+                    type="button"
+                    title={av.label}
+                    onClick={() => setSelectedAvatar(av.id)}
+                    className={`h-11 rounded-xl border flex items-center justify-center transition-all active:scale-90 ${
+                      isSel
+                        ? `${av.color} scale-105 shadow-md ring-2 ring-[#DFB56C]`
+                        : "bg-[#15140F] text-[#A79C82] border-[#38352A] hover:text-[#EFE8D8]"
+                    }`}
+                  >
+                    <IconComp className="w-5 h-5" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="pt-2 flex items-center gap-2">
+            <button
+              type="submit"
+              className="flex-1 min-h-[44px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-md"
+            >
+              {savedSuccess ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <span>Ficha Atualizada!</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-[#DFB56C]" />
+                  <span>Salvar Alterações</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="min-h-[44px] px-3 bg-[#15140F] hover:bg-[#7A2E27]/20 border border-[#38352A] hover:border-[#7A2E27] text-[#C4645A] font-mono text-xs rounded-xl flex items-center gap-1.5 transition-colors active:scale-95"
+              title="Desconectar da conta"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Desconectar</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};

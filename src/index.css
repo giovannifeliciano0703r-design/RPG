@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #15140F;
+    --bg-elevated: #1D1B14;
+    --panel: #EEE7D5;
+    --panel-line: #C9BFA0;
+    --ink: #221F17;
+    --ink-muted: #5C5641;
+    --text: #EFE8D8;
+    --text-muted: #A79C82;
+    --hairline: #38352A;
+    --oxblood: #7A2E27;
+    --oxblood-light: #C4645A;
+    --verdigris: #4B6B4E;
+    --verdigris-light: #8DAE8F;
+    --amber: #B08635;
+    --amber-light: #DFB56C;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #38352A;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4B473A;
+}
+
+/* Pulse animation */
+@keyframes arcane-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+.animate-arcane-pulse {
+  animation: arcane-pulse 1.4s infinite ease-in-out;
+}
+
+/* Dynamic Dice Tumble Keyframes */
+@keyframes dice-tumble {
+  0% {
+    transform: perspective(600px) translateY(0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1);
+  }
+  25% {
+    transform: perspective(600px) translateY(-28px) rotateX(180deg) rotateY(90deg) rotateZ(45deg) scale(1.18);
+  }
+  50% {
+    transform: perspective(600px) translateY(-42px) rotateX(360deg) rotateY(270deg) rotateZ(180deg) scale(1.22);
+  }
+  75% {
+    transform: perspective(600px) translateY(-14px) rotateX(540deg) rotateY(450deg) rotateZ(270deg) scale(1.1);
+  }
+  100% {
+    transform: perspective(600px) translateY(0px) rotateX(720deg) rotateY(720deg) rotateZ(360deg) scale(1);
+  }
+}
+
+.animate-dice-tumble {
+  animation: dice-tumble 0.65s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+@keyframes dice-impact {
+  0% {
+    transform: scale(1.25);
+  }
+  50% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-dice-impact {
+  animation: dice-impact 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+
