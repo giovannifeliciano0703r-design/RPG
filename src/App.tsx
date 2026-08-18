@@ -211,7 +211,14 @@ export default function App() {
   const [monsters, setMonsters] = useState<MonsterStatBlock[]>(() => {
     try {
       const saved = localStorage.getItem("mestre_arcano_monsters");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((m: MonsterStatBlock) => m.id));
+          const missingDefaults = DEFAULT_MONSTERS.filter((m) => !existingIds.has(m.id));
+          return [...parsed, ...missingDefaults];
+        }
+      }
     } catch (e) {}
     return DEFAULT_MONSTERS;
   });
