@@ -27,6 +27,8 @@ import {
   Shield,
   Moon,
   Skull,
+  FileText,
+  Printer,
 } from "lucide-react";
 import { RpgSystem, ChatMessage, ParsedRpgCard, ParsedBlock, KnowledgeEntry, UserProfile, isUserAdmin } from "./types";
 import { parseResponseBlocks } from "./utils/cardParser";
@@ -390,10 +392,51 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    if (window.confirm("Deseja desconectar e retornar à tela de login do Códice?")) {
-      setCurrentUser(null);
+    setIsProfileOpen(false);
+    setIsGrimoireOpen(false);
+    setIsKnowledgeOpen(false);
+    setIsDiceOpen(false);
+    setCurrentUser(null);
+    try {
       localStorage.removeItem("mestre_arcano_current_user");
+    } catch (e) {
+      console.error("Erro ao limpar dados do usuário", e);
     }
+  };
+
+  const handleGenerateReport = () => {
+    const reportData = {
+      title: `Relatório de Sessão & Consulta Arcana — ${activeSystem}`,
+      date: new Date().toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      system: activeSystem,
+      user: currentUser?.name || "Mestre / Jogador",
+      role: currentUser?.role || "Mestre da Mesa",
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp,
+      })),
+      grimoireCards: savedCards,
+      customRulesCount: customKnowledge.filter((k) => k.isActive).length,
+      generatedAt: Date.now(),
+    };
+
+    try {
+      // Direct save to localStorage - eliminates any POST 405 error on static/Vercel hosting
+      localStorage.setItem("relatorio_data", JSON.stringify(reportData));
+      localStorage.setItem("mestre_arcano_relatorio", JSON.stringify(reportData));
+    } catch (err) {
+      console.error("Erro ao salvar dados do relatório no localStorage:", err);
+    }
+
+    // Open clean GET route /relatorio in new tab
+    window.open("/relatorio", "_blank");
   };
 
   const handleUpdateProfile = (updated: UserProfile) => {
@@ -430,6 +473,9 @@ export default function App() {
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} />;
   }
+
+  // Admin authorization status
+  const isCurrentUserAdmin = isUserAdmin(currentUser);
 
   // Filter messages by in-session search query if active
   const displayedMessages = searchQuery
@@ -503,23 +549,29 @@ export default function App() {
           <div>
             <div className="text-[10px] tracking-widest uppercase text-[#A79C82] mb-3 font-mono flex items-center justify-between">
               <span>Ferramentas da Mesa</span>
-              <span className="text-[#8DAE8F] text-[9px] font-mono">
-                {customKnowledge.filter((e) => e.isActive).length} ativas
-              </span>
+              {isCurrentUserAdmin && (
+                <span className="text-[#8DAE8F] text-[9px] font-mono">
+                  {customKnowledge.filter((e) => e.isActive).length} ativas
+                </span>
+              )}
             </div>
             <div className="flex flex-col gap-2">
-              <button
-                onClick={() => setIsKnowledgeOpen(true)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] hover:border-[#8DAE8F] rounded-md text-xs text-[#EFE8D8] transition-colors group"
-              >
-                <div className="flex items-center gap-2">
-                  <Database className="w-4 h-4 text-[#8DAE8F] group-hover:scale-110 transition-transform" />
-                  <span className="font-medium">Banco de Dados</span>
-                </div>
-                <span className="font-mono text-[10px] bg-[#4B6B4E]/30 text-[#8DAE8F] border border-[#4B6B4E]/40 px-1.5 py-0.5 rounded">
-                  {customKnowledge.length}
-                </span>
-              </button>
+              {/* Database button - strictly restricted to Admins */}
+              {isCurrentUserAdmin && (
+                <button
+                  onClick={() => setIsKnowledgeOpen(true)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-[#15140F] hover:bg-[#25231B] border border-[#DFB56C]/40 hover:border-[#DFB56C] rounded-md text-xs text-[#EFE8D8] transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
+                    <span className="font-medium">Banco de Dados</span>
+                    <span className="text-[9px] font-mono text-[#DFB56C] bg-[#DFB56C]/10 px-1 py-0.2 rounded border border-[#DFB56C]/30">ADM</span>
+                  </div>
+                  <span className="font-mono text-[10px] bg-[#4B6B4E]/30 text-[#8DAE8F] border border-[#4B6B4E]/40 px-1.5 py-0.5 rounded">
+                    {customKnowledge.length}
+                  </span>
+                </button>
+              )}
 
               <button
                 onClick={() => setIsGrimoireOpen(true)}
@@ -543,6 +595,19 @@ export default function App() {
                   <span>Rolador de Dados</span>
                 </div>
                 <span className="font-mono text-[10px] text-[#A79C82]">d4-d100</span>
+              </button>
+
+              {/* Gerar Relatório (localStorage based without POST) */}
+              <button
+                onClick={handleGenerateReport}
+                className="w-full flex items-center justify-between px-3 py-2 bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C] rounded-md text-xs text-[#EFE8D8] transition-colors group cursor-pointer"
+                title="Gera o relatório da sessão e abre em uma nova aba via localStorage"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
+                  <span>Gerar Relatório</span>
+                </div>
+                <span className="font-mono text-[10px] text-[#A79C82] group-hover:text-[#DFB56C]">Aba</span>
               </button>
             </div>
           </div>
@@ -574,10 +639,11 @@ export default function App() {
         </div>
 
         {/* User Profile in Sidebar Footer */}
-        <div className="p-3 border-t border-[#38352A] bg-[#15140F]/80">
+        <div className="p-3 border-t border-[#38352A] bg-[#15140F]/80 flex items-center gap-2">
           <button
             onClick={() => setIsProfileOpen(true)}
-            className="w-full flex items-center justify-between p-2 rounded-xl bg-[#1D1B14] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C]/60 transition-all text-left group cursor-pointer"
+            className="flex-1 flex items-center justify-between p-2 rounded-xl bg-[#1D1B14] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C]/60 transition-all text-left group cursor-pointer min-w-0"
+            title="Abrir Perfil"
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-lg bg-[#7A2E27]/30 border border-[#7A2E27] flex items-center justify-center text-[#DFB56C] shrink-0">
@@ -586,6 +652,9 @@ export default function App() {
               <div className="min-w-0 flex-1">
                 <div className="text-xs font-serif font-bold text-[#EFE8D8] truncate flex items-center gap-1">
                   <span>{currentUser.name}</span>
+                  {isCurrentUserAdmin && (
+                    <span className="text-[9px] font-mono text-[#DFB56C] bg-[#DFB56C]/20 px-1 rounded">ADM</span>
+                  )}
                   {currentUser.isGuest && (
                     <span className="text-[9px] font-mono text-[#A79C82]">(Convidado)</span>
                   )}
@@ -598,6 +667,14 @@ export default function App() {
             <div className="text-[#A79C82] group-hover:text-[#EFE8D8] p-1" title="Ver Perfil">
               <User className="w-3.5 h-3.5" />
             </div>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            title="Desconectar e voltar para tela de login"
+            className="p-2.5 bg-[#1D1B14] hover:bg-[#7A2E27]/30 border border-[#38352A] hover:border-[#7A2E27] text-[#A79C82] hover:text-[#C4645A] rounded-xl transition-colors cursor-pointer shrink-0"
+          >
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </aside>
@@ -655,6 +732,16 @@ export default function App() {
                   {savedCards.length}
                 </span>
               )}
+            </button>
+
+            {/* Report Button */}
+            <button
+              onClick={handleGenerateReport}
+              title="Gerar Relatório de Sessão (Nova Aba)"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5 text-[#DFB56C]" />
+              <span className="hidden sm:inline">Relatório</span>
             </button>
 
             {/* Search Button */}
@@ -992,33 +1079,36 @@ export default function App() {
               inputRef.current?.focus();
               scrollToBottom();
             }}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 text-[#DFB56C] rounded-lg transition-colors active:scale-95"
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#DFB56C] rounded-lg transition-colors active:scale-95"
           >
             <MessageSquare className="w-5 h-5" />
             <span className="text-[10px] font-mono font-medium">Oráculo</span>
           </button>
 
-          <button
-            onClick={() => setIsKnowledgeOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 text-[#8DAE8F] rounded-lg transition-colors active:scale-95 relative"
-          >
-            <Database className="w-5 h-5" />
-            <span className="text-[10px] font-mono font-medium">Regras</span>
-            {customKnowledge.filter((e) => e.isActive).length > 0 && (
-              <span className="absolute top-0 right-2 w-4 h-4 bg-[#4B6B4E] text-[#E9F1E9] text-[9px] font-bold rounded-full flex items-center justify-center border border-[#15140F]">
-                {customKnowledge.filter((e) => e.isActive).length}
-              </span>
-            )}
-          </button>
+          {/* Database button - strictly restricted to Admins */}
+          {isCurrentUserAdmin && (
+            <button
+              onClick={() => setIsKnowledgeOpen(true)}
+              className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#8DAE8F] rounded-lg transition-colors active:scale-95 relative"
+            >
+              <Database className="w-5 h-5" />
+              <span className="text-[10px] font-mono font-medium">Regras DB</span>
+              {customKnowledge.filter((e) => e.isActive).length > 0 && (
+                <span className="absolute top-0 right-1 w-4 h-4 bg-[#4B6B4E] text-[#E9F1E9] text-[9px] font-bold rounded-full flex items-center justify-center border border-[#15140F]">
+                  {customKnowledge.filter((e) => e.isActive).length}
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             onClick={() => setIsGrimoireOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 text-[#B08635] rounded-lg transition-colors active:scale-95 relative"
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#B08635] rounded-lg transition-colors active:scale-95 relative"
           >
             <BookMarked className="w-5 h-5" />
             <span className="text-[10px] font-mono font-medium">Grimório</span>
             {savedCards.length > 0 && (
-              <span className="absolute top-0 right-2 w-4 h-4 bg-[#B08635] text-[#15140F] text-[9px] font-bold rounded-full flex items-center justify-center border border-[#15140F]">
+              <span className="absolute top-0 right-1 w-4 h-4 bg-[#B08635] text-[#15140F] text-[9px] font-bold rounded-full flex items-center justify-center border border-[#15140F]">
                 {savedCards.length}
               </span>
             )}
@@ -1026,15 +1116,25 @@ export default function App() {
 
           <button
             onClick={() => setIsDiceOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 text-[#C4645A] rounded-lg transition-colors active:scale-95"
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#C4645A] rounded-lg transition-colors active:scale-95"
           >
             <Dices className="w-5 h-5" />
             <span className="text-[10px] font-mono font-medium">Dados</span>
           </button>
 
+          {/* Relatório Button */}
+          <button
+            onClick={handleGenerateReport}
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#DFB56C] rounded-lg transition-colors active:scale-95"
+            title="Gerar Relatório de Sessão"
+          >
+            <FileText className="w-5 h-5" />
+            <span className="text-[10px] font-mono font-medium">Relatório</span>
+          </button>
+
           <button
             onClick={() => setIsProfileOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-1 px-3 text-[#DFB56C] rounded-lg transition-colors active:scale-95"
+            className="flex flex-col items-center gap-0.5 py-1 px-2.5 text-[#DFB56C] rounded-lg transition-colors active:scale-95"
           >
             <div className="w-5 h-5 flex items-center justify-center">
               {React.createElement(getAvatarIconComponent(currentUser.avatar), { className: "w-4.5 h-4.5" })}
@@ -1128,6 +1228,7 @@ export default function App() {
         onResetDefaults={handleResetKnowledgeDefaults}
         onExportJSON={handleExportKnowledgeJSON}
         onImportJSON={handleImportKnowledgeJSON}
+        isAdmin={isCurrentUserAdmin}
         onAskAboutEntry={(title) => {
           setIsKnowledgeOpen(false);
           setInputText(`Explique a regra: ${title}`);
