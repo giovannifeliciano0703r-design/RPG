@@ -1,6 +1,6 @@
 {
   "name": "Mestre Arcano",
-  "description": "Códice interativo e motor de consulta de regras para RPGs de mesa (D&D, Pathfinder, Tormenta20, Vampiro, GURPS) com Banco de Dados de Regras da Casa & Homebrews customizáveis.",
+  "description": "Hub principal, criador de fichas de personagens de alta fidelidade, Mesa Virtual VTT e Códice de Regras com IA para RPGs de mesa.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

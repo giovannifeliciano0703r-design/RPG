@@ -11,6 +11,8 @@ import {
   MessageSquare,
   Shield,
   Heart,
+  ChevronRight,
+  Minimize2,
 } from "lucide-react";
 import {
   ChatMessage,
@@ -31,6 +33,7 @@ interface CampaignDualChatProps {
   onOpenMacroManager: () => void;
   onOpenMediaLibrary: () => void;
   onViewHdImage: (url: string, title?: string) => void;
+  onToggleCollapse?: () => void;
 }
 
 export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
@@ -43,6 +46,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
   onOpenMacroManager,
   onOpenMediaLibrary,
   onViewHdImage,
+  onToggleCollapse,
 }) => {
   const [activeChannel, setActiveChannel] = useState<ChatChannelType>("IC");
   const [inputText, setInputText] = useState("");
@@ -146,9 +150,21 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
           </button>
         </div>
 
-        <span className="text-[10px] font-mono text-[#A79C82] hidden sm:inline">
-          {activeChannel === "IC" ? "Falas & Ações na Mesa" : "Chat Geral"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-[#A79C82] hidden lg:inline">
+            {activeChannel === "IC" ? "Falas & Ações" : "Chat Geral"}
+          </span>
+          {onToggleCollapse && (
+            <button
+              onClick={onToggleCollapse}
+              className="px-2 py-1 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#A79C82] hover:text-[#DFB56C] rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-mono"
+              title="Abreviar / Ocultar Chat da Mesa"
+            >
+              <Minimize2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Abreviar</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Message Stream */}

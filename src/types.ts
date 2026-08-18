@@ -198,6 +198,26 @@ export interface InventoryItem {
   description?: string;
 }
 
+export interface FeatureItem {
+  id: string;
+  name: string;
+  description: string;
+  usageFrequency?: string; // e.g. "1X POR TURNO", "1X POR DESCANSO CURTO", "PASSIVA"
+  damage?: string; // e.g. "1D6", "2D8+3"
+  tags?: string[]; // e.g. ["ÁGIL", "LEVE"]
+}
+
+export interface DiverseItem {
+  id: string;
+  name: string;
+  price?: string; // e.g. "25G", "1C"
+  weight?: string; // e.g. "0.5KG"
+  tags?: string[]; // e.g. ["ÁGIL", "LEVE"]
+  damage?: string;
+  description?: string;
+  equipped?: boolean;
+}
+
 export interface CharacterSheet {
   id: string;
   campaignId?: string;
@@ -214,6 +234,18 @@ export interface CharacterSheet {
   tokenUrl?: string;
   alignment?: string;
   background?: string;
+
+  // New fields from Reference Images
+  multiclass?: string;
+  multiclassLevel?: number;
+  origin?: string; // e.g. "Montanhas do céu"
+  age?: string; // e.g. "17"
+  sizeCategory?: string; // e.g. "2,05"
+  inspiration?: boolean | number;
+  passivePerceptionBonus?: number;
+  languages?: string; // "Língua tribal(Nortista)\nLíngua imperial (comum)"
+  armorAndWeaponTraining?: string; // "Treinamento em Armas e Armaduras"
+  toolsAndInstruments?: string; // "Ferramentas, Instrumentos e Conjuntos de Jogos"
 
   // Base Stats
   strength: CoreStat;
@@ -237,6 +269,12 @@ export interface CharacterSheet {
   initiativeBonus: number;
   proficiencyBonusOverride?: number;
 
+  // Death saves
+  deathSaves?: {
+    successes: number; // 0 to 3
+    failures: number; // 0 to 3
+  };
+
   // Custom Formula configuration
   customFormulas?: Record<string, string>;
 
@@ -256,16 +294,37 @@ export interface CharacterSheet {
   // Buffs / Conditions
   activeConditions: TempConditionEffect[];
 
-  // Spells & Slots
+  // Spells, Slots & Magic Attributes
   spellcastingAbility?: "int" | "wis" | "cha";
+  spellcastingBonus?: number;
+  spellSaveModifier?: number;
+  otherResourcesCount?: number; // e.g. Fúria, Canalizar Divindade [ - 0 + ]
+  preparedSpellsCount?: number; // [ - 0 + ]
+  cantripSlots?: number; // [ - 0 + ]
   spellSlots: Record<number, { total: number; used: number }>;
   spells: SpellItem[];
 
-  // Inventory & Equipment
+  // Features and Abilities (Habilidades de Classe / Raça)
+  featuresList?: FeatureItem[];
+
+  // Inventory, Items & Equipment Slots
   inventory: InventoryItem[];
+  diverseItems?: DiverseItem[];
+  equippedSlots?: {
+    leftHand?: string;
+    rightHand?: string;
+    armor?: string;
+    accessories?: string;
+  };
   currency: { cp: number; sp: number; ep: number; gp: number; pp: number };
 
   // Notes & Bio
+  notesStructure?: {
+    missions?: string;
+    alliances?: string;
+    reminders?: string;
+    otherNotes?: string;
+  };
   personalityTraits?: string;
   ideals?: string;
   bonds?: string;
@@ -595,6 +654,7 @@ export interface VttMap {
 export interface MapToken {
   id: string;
   characterId?: string;
+  ownerId?: string;
   name: string;
   avatarUrl?: string;
   x: number;

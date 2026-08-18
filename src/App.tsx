@@ -37,6 +37,10 @@ import {
   Layers,
   Heart,
   Settings,
+  Compass,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
 } from "lucide-react";
 import {
   RpgSystem,
@@ -67,6 +71,7 @@ import { UserProfileModal } from "./components/UserProfileModal";
 import { DEFAULT_KNOWLEDGE_ENTRIES } from "./data/defaultKnowledge";
 import { DEFAULT_MONSTERS } from "./data/defaultMonsters";
 import {
+  URICH_CHARACTER,
   DEFAULT_CHARACTER,
   DEFAULT_MACROS,
   DEFAULT_NPC_FOLDERS,
@@ -89,6 +94,7 @@ import { BattlemapCanvas } from "./components/vtt/BattlemapCanvas";
 import { InitiativeTrackerBar } from "./components/vtt/InitiativeTrackerBar";
 import { executeMacro } from "./utils/macroEngine";
 import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
+import { HubView } from "./components/hub/HubView";
 
 const SYSTEMS: RpgSystem[] = [
   "Dungeons & Dragons (D&D)",
@@ -130,8 +136,8 @@ Consulte qualquer mecânica, gere fichas inteligentes, navegue pelo Bestiário c
 - 👑 **Campanhas Multiplayer**: Papéis de GM/Co-GM com permissões granulares e Chat IC/OOC.`;
 
 export default function App() {
-  // Current view mode: 'codex' (AI Rules Chat) | 'vtt' (Virtual Tabletop Battlemap + Dual Chat)
-  const [activeView, setActiveView] = useState<"codex" | "vtt">("codex");
+  // Current view mode: 'hub' (Dashboard Hub) | 'codex' (AI Rules Chat) | 'vtt' (Virtual Tabletop Battlemap + Dual Chat)
+  const [activeView, setActiveView] = useState<"hub" | "codex" | "vtt">("hub");
 
   const [activeSystem, setActiveSystem] = useState<RpgSystem>(() => {
     const saved = localStorage.getItem("mestre_arcano_system");
@@ -195,13 +201,18 @@ export default function App() {
     return null;
   });
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   // Module 1: Character Sheets State
   const [characters, setCharacters] = useState<CharacterSheet[]>(() => {
     try {
       const saved = localStorage.getItem("mestre_arcano_characters");
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {}
-    return [DEFAULT_CHARACTER];
+    return [URICH_CHARACTER, DEFAULT_CHARACTER];
   });
   const [activeCharacter, setActiveCharacter] = useState<CharacterSheet | null>(characters[0] || null);
   const [editingCharacter, setEditingCharacter] = useState<CharacterSheet | null>(null);
@@ -315,6 +326,7 @@ export default function App() {
     } catch (e) {}
     return DEFAULT_INITIATIVE_STATE;
   });
+  const [isVttChatOpen, setIsVttChatOpen] = useState(false);
 
   // Chat UI controls
   const [inputText, setInputText] = useState("");
@@ -578,6 +590,7 @@ export default function App() {
     if (user.favoriteSystem) {
       setActiveSystem(user.favoriteSystem);
     }
+    setActiveView("hub");
   };
 
   const handleLogout = () => {
@@ -763,10 +776,20 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#14130E] text-[#EFE8D8] font-sans antialiased">
-      {/* ================= DESKTOP SIDEBAR ================= */}
+      {/* Mobile backdrop for sidebar */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 md:hidden animate-in fade-in"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* ================= DESKTOP & MOBILE SIDEBAR ================= */}
       <aside
         id="sidebar"
-        className="hidden md:flex flex-col w-[260px] flex-shrink-0 border-r border-[#38352A] bg-[#1D1B14] overflow-y-auto select-none"
+        className={`${
+          isSidebarOpen ? "flex" : "hidden"
+        } flex-col fixed md:relative inset-y-0 left-0 z-50 md:z-auto w-[280px] md:w-[260px] flex-shrink-0 border-r border-[#38352A] bg-[#1D1B14] overflow-y-auto select-none shadow-2xl md:shadow-none transition-all duration-200`}
       >
         {/* Brand Header */}
         <div className="p-4 border-b border-[#38352A] flex items-center justify-between">
@@ -779,14 +802,33 @@ export default function App() {
               VTT & Códice de Regras
             </div>
           </div>
+
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="p-1.5 rounded-xl bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C] text-[#A79C82] hover:text-[#DFB56C] transition-colors cursor-pointer"
+            title="Ocultar Barra Lateral"
+          >
+            <PanelLeftClose className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* View Switcher: AI Rules vs VTT Battlemap */}
+        {/* View Switcher: HUB vs AI Rules vs VTT Battlemap */}
         <div className="p-3 border-b border-[#38352A] bg-[#15140F]">
-          <div className="grid grid-cols-2 gap-1 p-1 bg-[#1C1A14] border border-[#38352A] rounded-xl text-xs font-mono">
+          <div className="grid grid-cols-3 gap-1 p-1 bg-[#1C1A14] border border-[#38352A] rounded-xl text-xs font-mono">
+            <button
+              onClick={() => setActiveView("hub")}
+              className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                activeView === "hub"
+                  ? "bg-[#DFB56C] text-[#15140F] font-bold shadow-md"
+                  : "text-[#A79C82] hover:text-[#EFE8D8]"
+              }`}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>HUB</span>
+            </button>
             <button
               onClick={() => setActiveView("codex")}
-              className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 activeView === "codex"
                   ? "bg-[#DFB56C] text-[#15140F] font-bold shadow-md"
                   : "text-[#A79C82] hover:text-[#EFE8D8]"
@@ -797,14 +839,14 @@ export default function App() {
             </button>
             <button
               onClick={() => setActiveView("vtt")}
-              className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+              className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
                 activeView === "vtt"
                   ? "bg-[#DFB56C] text-[#15140F] font-bold shadow-md"
                   : "text-[#A79C82] hover:text-[#EFE8D8]"
               }`}
             >
               <MapIcon className="w-3.5 h-3.5" />
-              <span>Mesa VTT</span>
+              <span>VTT</span>
             </button>
           </div>
         </div>
@@ -985,81 +1027,142 @@ export default function App() {
 
       {/* ================= MAIN VIEWPORT ================= */}
       <main id="main" className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden relative bg-[#14130E]">
-        {/* Topbar Header */}
-        <header
-          id="topbar"
-          className="h-14 border-b border-[#2B2820] bg-[#171510]/95 backdrop-blur-md shrink-0 z-10 flex items-center justify-between px-3 sm:px-6"
-        >
-          {/* Left: View mode toggler & System */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex items-center gap-1.5 md:hidden">
+        {/* Topbar Header (Only rendered when outside HUB to avoid duplicate header bars) */}
+        {activeView !== "hub" && (
+          <header
+            id="topbar"
+            className="h-14 border-b border-[#2B2820] bg-[#171510]/95 backdrop-blur-md shrink-0 z-10 flex items-center justify-between px-3 sm:px-6"
+          >
+            {/* Left: Sidebar Toggle, View mode toggler & System */}
+            <div className="flex items-center gap-2 min-w-0">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 rounded-xl bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C] text-[#DFB56C] transition-all cursor-pointer shadow-xs shrink-0 active:scale-95 flex items-center gap-1.5"
+                title={isSidebarOpen ? "Ocultar Menu Lateral" : "Abrir Menu Lateral"}
+              >
+                {isSidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+                <span className="text-[11px] font-mono font-bold hidden sm:inline">{isSidebarOpen ? "Fechar Menu" : "Menu"}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveView("hub")}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] text-[#D6CEBE]"
+                title="Voltar ao HUB Principal"
+              >
+                <Compass className="w-3.5 h-3.5 text-[#DFB56C]" />
+                <span>HUB</span>
+              </button>
+
               <button
                 onClick={() => setActiveView(activeView === "codex" ? "vtt" : "codex")}
-                className="p-1.5 bg-[#1F1D16] border border-[#38352A] rounded-lg text-xs font-mono text-[#DFB56C] flex items-center gap-1"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer bg-[#1F1D16] border border-[#DFB56C]/50 text-[#DFB56C]"
+                title="Alternar entre Códice e Mesa VTT"
               >
-                {activeView === "codex" ? <MapIcon className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-                <span>{activeView === "codex" ? "VTT" : "Códice"}</span>
+                {activeView === "codex" ? <Sparkles className="w-3.5 h-3.5 text-[#DFB56C]" /> : <MapIcon className="w-3.5 h-3.5 text-[#DFB56C]" />}
+                <span>{activeView === "codex" ? "Códice" : "Mesa VTT"}</span>
+              </button>
+
+              <button
+                onClick={() => setIsMobileSystemOpen(true)}
+                title="Clique para escolher outro sistema de RPG"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg active:scale-95 transition-all cursor-pointer shadow-xs group"
+              >
+                <span>{currentSystemMeta.icon}</span>
+                <span className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${currentSystemMeta.badgeBg}`}>
+                  {currentSystemMeta.abbrev}
+                </span>
+                <span className="hidden sm:inline font-medium text-[#D6CEBE] text-xs truncate max-w-[150px]">
+                  {currentSystemMeta.shortName}
+                </span>
+                <ChevronDown className="w-3 h-3 text-[#8A8270] group-hover:text-[#DFB56C] transition-colors" />
               </button>
             </div>
 
-            <button
-              onClick={() => setIsMobileSystemOpen(true)}
-              title="Clique para escolher outro sistema de RPG"
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg active:scale-95 transition-all cursor-pointer shadow-xs group"
-            >
-              <span>{currentSystemMeta.icon}</span>
-              <span className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${currentSystemMeta.badgeBg}`}>
-                {currentSystemMeta.abbrev}
-              </span>
-              <span className="hidden sm:inline font-medium text-[#D6CEBE] text-xs truncate max-w-[150px]">
-                {currentSystemMeta.shortName}
-              </span>
-              <ChevronDown className="w-3 h-3 text-[#8A8270] group-hover:text-[#DFB56C] transition-colors" />
-            </button>
-          </div>
+            {/* Right: Quick Action Controls */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setIsDiceOpen(true)}
+                title="Abrir Rolador de Dados"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#C4645A]/60 text-[#D6CEBE] hover:text-[#EFE8D8] text-xs font-mono rounded-lg transition-colors cursor-pointer"
+              >
+                <Dices className="w-3.5 h-3.5 text-[#C4645A]" />
+                <span className="hidden md:inline">Dados</span>
+              </button>
 
-          {/* Right: Quick Action Controls */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsDiceOpen(true)}
-              title="Abrir Rolador de Dados"
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#C4645A]/60 text-[#D6CEBE] hover:text-[#EFE8D8] text-xs font-mono rounded-lg transition-colors"
-            >
-              <Dices className="w-3.5 h-3.5 text-[#C4645A]" />
-              <span className="hidden md:inline">Dados</span>
-            </button>
+              <button
+                onClick={() => {
+                  setEditingCharacter(activeCharacter || characters[0]);
+                  setIsCharacterSheetOpen(true);
+                }}
+                title="Abrir Ficha de Personagem"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Ficha</span>
+              </button>
 
-            <button
-              onClick={() => {
-                setEditingCharacter(activeCharacter || characters[0]);
-                setIsCharacterSheetOpen(true);
-              }}
-              title="Abrir Ficha de Personagem"
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors"
-            >
-              <User className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Ficha</span>
-            </button>
+              <button
+                onClick={() => setIsGrimoireOpen(true)}
+                title="Grimório de Fichas Salvas"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#D6CEBE] text-xs font-mono rounded-lg transition-colors cursor-pointer"
+              >
+                <BookMarked className="w-3.5 h-3.5 text-[#DFB56C]" />
+                <span>Grimório ({savedCards.length})</span>
+              </button>
 
-            <button
-              onClick={() => setIsGrimoireOpen(true)}
-              title="Grimório de Fichas Salvas"
-              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#D6CEBE] text-xs font-mono rounded-lg transition-colors"
-            >
-              <BookMarked className="w-3.5 h-3.5 text-[#DFB56C]" />
-              <span>Grimório ({savedCards.length})</span>
-            </button>
+              <button
+                onClick={handleGenerateReport}
+                title="Gerar Relatório de Sessão (Nova Aba)"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#DFB56C]" />
+                <span className="hidden sm:inline">Relatório</span>
+              </button>
+            </div>
+          </header>
+        )}
 
-            <button
-              onClick={handleGenerateReport}
-              title="Gerar Relatório de Sessão (Nova Aba)"
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#DFB56C]" />
-              <span className="hidden sm:inline">Relatório</span>
-            </button>
-          </div>
-        </header>
+        {/* View Mode 0: HUB & SHORTCUTS DASHBOARD */}
+        {activeView === "hub" && (
+          <HubView
+            currentUser={currentUser}
+            activeCharacter={activeCharacter}
+            characters={characters}
+            activeSystem={activeSystem}
+            onNavigateView={setActiveView}
+            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+            onOpenCharacterSheet={(char) => {
+              if (char) {
+                setEditingCharacter(char);
+                setActiveCharacter(char);
+              } else {
+                const newChar: CharacterSheet = {
+                  ...URICH_CHARACTER,
+                  id: `char-${Date.now()}`,
+                  name: "Novo Personagem",
+                  ownerId: currentUser.id,
+                  ownerName: currentUser.name,
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                };
+                setEditingCharacter(newChar);
+                setCharacters((prev) => [...prev, newChar]);
+                setActiveCharacter(newChar);
+              }
+              setIsCharacterSheetOpen(true);
+            }}
+            onOpenBestiary={() => setIsBestiaryOpen(true)}
+            onOpenMacroManager={() => setIsMacroOpen(true)}
+            onOpenMediaLibrary={() => setIsMediaOpen(true)}
+            onOpenNpcFolders={() => setIsNpcFoldersOpen(true)}
+            onOpenCampaignManager={() => setIsCampaignOpen(true)}
+            onOpenDiceRoller={() => setIsDiceOpen(true)}
+            onOpenGrimoire={() => setIsGrimoireOpen(true)}
+            onOpenKnowledgeBase={() => setIsKnowledgeOpen(true)}
+            onOpenSystemSelector={() => setIsMobileSystemOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+          />
+        )}
 
         {/* View Mode 1: CODEX & AI RULES ENGINE */}
         {activeView === "codex" && (
@@ -1234,36 +1337,55 @@ export default function App() {
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
                 isGm={isCurrentGm}
-                activeCharacter={activeCharacter}
-                onRollCheck={handleBroadcastRoll}
-              />
-            </div>
-
-            {/* Right: Multiplayer Dual Chat (IC/OOC) & Macro Roller */}
-            <div className="w-full md:w-96 border-t md:border-t-0 md:border-l border-[#38352A] h-72 md:h-full shrink-0 flex flex-col">
-              <CampaignDualChat
-                messages={campaignMessages}
-                onSendMessage={(newMsg) => {
-                  const fullMsg: ChatMessage = {
-                    id: `camp-msg-${Date.now()}`,
-                    senderId: currentUser.id,
-                    senderName: currentUser.name,
-                    content: newMsg.content || "",
-                    timestamp: Date.now(),
-                    ...newMsg,
-                  };
-                  setCampaignMessages((prev) => [...prev, fullMsg]);
-                }}
                 currentUser={currentUser}
                 characters={characters}
                 activeCharacter={activeCharacter}
-                onSelectActiveCharacter={setActiveCharacter}
-                onOpenMacroManager={() => setIsMacroOpen(true)}
-                onOpenMediaLibrary={() => setIsMediaOpen(true)}
-                onViewHdImage={(url, title) => setLightboxImage({ url, title })}
+                onRollCheck={handleBroadcastRoll}
+                isChatOpen={isVttChatOpen}
+                onToggleChat={() => setIsVttChatOpen((prev) => !prev)}
               />
             </div>
+
+            {/* Right: Multiplayer Dual Chat (IC/OOC) & Macro Roller - Collapsible / Abbreviated */}
+            {isVttChatOpen && (
+              <div className="w-full md:w-96 border-t md:border-t-0 md:border-l border-[#38352A] h-80 md:h-full shrink-0 flex flex-col animate-in fade-in slide-in-from-right-2 duration-200">
+                <CampaignDualChat
+                  messages={campaignMessages}
+                  onSendMessage={(newMsg) => {
+                    const fullMsg: ChatMessage = {
+                      id: `camp-msg-${Date.now()}`,
+                      senderId: currentUser.id,
+                      senderName: currentUser.name,
+                      content: newMsg.content || "",
+                      timestamp: Date.now(),
+                      ...newMsg,
+                    };
+                    setCampaignMessages((prev) => [...prev, fullMsg]);
+                  }}
+                  currentUser={currentUser}
+                  characters={characters}
+                  activeCharacter={activeCharacter}
+                  onSelectActiveCharacter={setActiveCharacter}
+                  onOpenMacroManager={() => setIsMacroOpen(true)}
+                  onOpenMediaLibrary={() => setIsMediaOpen(true)}
+                  onViewHdImage={(url, title) => setLightboxImage({ url, title })}
+                  onToggleCollapse={() => setIsVttChatOpen(false)}
+                />
+              </div>
+            )}
           </div>
+        )}
+
+        {/* Floating Sidebar Open Button (visible when sidebar is closed) */}
+        {!isSidebarOpen && (
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="fixed bottom-5 left-5 z-40 px-3.5 py-2.5 rounded-2xl bg-[#DFB56C] hover:bg-[#F3CF8A] text-[#15140F] font-black shadow-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 border-2 border-[#15140F] animate-in fade-in"
+            title="Abrir Barra Lateral"
+          >
+            <PanelLeftOpen className="w-4 h-4" />
+            <span className="text-xs uppercase font-mono tracking-wider font-bold hidden sm:inline">Menu Lateral</span>
+          </button>
         )}
       </main>
 
