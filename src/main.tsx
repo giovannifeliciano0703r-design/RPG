@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { RelatorioView } from "./components/RelatorioView.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
+import "./utils/securityMigration";
 import "./index.css";
 
 function RootRouter() {
@@ -14,23 +15,15 @@ function RootRouter() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  if (pathname === "/relatorio" || pathname.startsWith("/relatorio")) {
-    return <RelatorioView />;
-  }
-
+  if (pathname === "/relatorio" || pathname.startsWith("/relatorio")) return <RelatorioView />;
   return <App />;
 }
 
 const root = document.getElementById("root");
-
-if (!root) {
-  throw new Error("Elemento #root não encontrado.");
-}
+if (!root) throw new Error("Elemento #root não encontrado.");
 
 createRoot(root).render(
   <StrictMode>
-    <AppErrorBoundary>
-      <RootRouter />
-    </AppErrorBoundary>
+    <AppErrorBoundary><RootRouter /></AppErrorBoundary>
   </StrictMode>
 );
