@@ -1,16 +1,18 @@
-import type { GameState } from '../types';
-
 const STORAGE_KEY = 'rpg-game-state-v1';
 
-export function saveGame(state: GameState): void {
+/** Save any serializable game state to localStorage. */
+export function saveGame<T>(state: T): boolean {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    return true;
   } catch (error) {
     console.error('Não foi possível salvar o jogo:', error);
+    return false;
   }
 }
 
-export function loadGame<T extends GameState>(): T | null {
+/** Load a previously saved game state. Returns null when no save exists. */
+export function loadGame<T>(): T | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? (JSON.parse(raw) as T) : null;
@@ -18,6 +20,10 @@ export function loadGame<T extends GameState>(): T | null {
     console.error('Não foi possível carregar o jogo:', error);
     return null;
   }
+}
+
+export function hasSavedGame(): boolean {
+  return localStorage.getItem(STORAGE_KEY) !== null;
 }
 
 export function clearGame(): void {
