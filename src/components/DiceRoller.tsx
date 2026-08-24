@@ -69,7 +69,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
       // Default to 1d20 preview
       setArenaDice([{ id: "init-1", value: 20, isCrit: true }]);
     }
-  }, [isOpen]);
+  }, [arenaDice.length, isOpen]);
 
   const currentDiceDef = DICE_TYPES.find((d) => d.type === selectedDice) || DICE_TYPES[5];
 
@@ -277,7 +277,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Rolador de dados" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
       <div className="w-full sm:max-w-2xl bg-[#1C1A14] border-t sm:border border-[#38352A] rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]">
         {/* Mobile Drag Indicator */}
         <div className="sm:hidden w-12 h-1.5 bg-[#38352A] rounded-full mx-auto mt-2.5 mb-1" />
@@ -315,6 +315,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
             {/* Close */}
             <button
               onClick={onClose}
+              aria-label="Fechar rolador de dados"
+              title="Fechar"
               className="text-[#8A8270] hover:text-[#F3EFE6] p-1.5 rounded-lg hover:bg-[#25231B] transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />

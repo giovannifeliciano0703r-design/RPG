@@ -170,7 +170,7 @@ export const createDefaultCharacterSheet = (
     ownerId,
     ownerName,
     name: "Valerius, o Bravo",
-    system: "D&D 5e",
+    system: "Dungeons & Dragons (D&D)",
     race: "Humano",
     characterClass: "Guerreiro",
     subclass: "Campeão",

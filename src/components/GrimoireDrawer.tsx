@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { BookMarked, X, Search, Trash2, Download, FileText, Sparkles, Filter } from "lucide-react";
 import { ParsedRpgCard } from "../types";
 import { RpgCard } from "./RpgCard";
@@ -25,23 +25,21 @@ export const GrimoireDrawer: React.FC<GrimoireDrawerProps> = ({
   const [selectedSystem, setSelectedSystem] = useState<string>("all");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
+  const systems = useMemo(() => Array.from(new Set(savedCards.map((card) => card.systemEd).filter(Boolean))), [savedCards]);
+  const categories = useMemo(() => Array.from(new Set(savedCards.map((card) => card.category).filter(Boolean))), [savedCards]);
+  const filteredCards = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return savedCards.filter((card) => {
+      const matchesSearch =
+        card.name.toLowerCase().includes(term) ||
+        card.description.toLowerCase().includes(term) ||
+        card.category?.toLowerCase().includes(term);
+      return matchesSearch && (selectedSystem === "all" || card.systemEd === selectedSystem) &&
+        (selectedCategory === "all" || card.category === selectedCategory);
+    });
+  }, [savedCards, searchTerm, selectedCategory, selectedSystem]);
+
   if (!isOpen) return null;
-
-  // Extract unique systems and categories from saved cards
-  const systems = Array.from(new Set(savedCards.map((c) => c.systemEd).filter(Boolean)));
-  const categories = Array.from(new Set(savedCards.map((c) => c.category).filter(Boolean)));
-
-  const filteredCards = savedCards.filter((card) => {
-    const matchesSearch =
-      card.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      card.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (card.category && card.category.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const matchesSystem = selectedSystem === "all" || card.systemEd === selectedSystem;
-    const matchesCategory = selectedCategory === "all" || card.category === selectedCategory;
-
-    return matchesSearch && matchesSystem && matchesCategory;
-  });
 
   const exportAsMarkdown = () => {
     if (savedCards.length === 0) return;
@@ -81,7 +79,7 @@ export const GrimoireDrawer: React.FC<GrimoireDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-xs animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Grimório de fichas" className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-xs animate-fade-in">
       <div className="w-full sm:max-w-xl md:max-w-2xl bg-[#1D1B14] border-l border-[#38352A] h-full shadow-2xl flex flex-col">
         {/* Top Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[#38352A] bg-[#15140F] shrink-0">
@@ -127,6 +125,8 @@ export const GrimoireDrawer: React.FC<GrimoireDrawerProps> = ({
             )}
             <button
               onClick={onClose}
+              aria-label="Fechar grimório"
+              title="Fechar"
               className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#38352A] rounded-lg transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center active:scale-95"
             >
               <X className="w-5 h-5" />

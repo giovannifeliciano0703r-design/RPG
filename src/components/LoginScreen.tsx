@@ -20,25 +20,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { RpgSystem, UserProfile, UserRole, isUserAdmin } from "../types";
+import { RpgSystem, UserProfile, UserRole } from "../types";
+import { RPG_SYSTEMS } from "../domain/rpgSystems";
+import { STORAGE_KEYS } from "../constants/storageKeys";
+import { persistSafely } from "../utils/storageGuard";
 
 interface LoginScreenProps {
-  onLogin: (user: UserProfile) => void;
+  onLogin: (user: UserProfile, remember?: boolean) => void;
 }
-
-const SYSTEMS: RpgSystem[] = [
-  "Dungeons & Dragons (D&D)",
-  "Pathfinder",
-  "Tormenta20 (T20)",
-  "Vampiro: A Máscara (Storyteller)",
-  "Call of Cthulhu",
-  "GURPS",
-  "Savage Worlds",
-  "Fate Core",
-  "Cyberpunk Red",
-  "Old Dragon",
-  "Outro / não especificar",
-];
 
 const AVATARS = [
   { id: "wizard", label: "Mago Arcanista", icon: Wand2, color: "text-[#DFB56C] bg-[#DFB56C]/10 border-[#DFB56C]/40" },
@@ -54,7 +43,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<UserRole>("Administrador (ADM)");
+  const [role, setRole] = useState<UserRole>("Mestre da Mesa");
   const [favoriteSystem, setFavoriteSystem] = useState<RpgSystem>("Dungeons & Dragons (D&D)");
   const [selectedAvatar, setSelectedAvatar] = useState("wizard");
   const [showPassword, setShowPassword] = useState(false);
@@ -72,68 +61,48 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
-    if (!email.trim() || !password.trim()) {
-      setErrorMessage("Por favor, preencha o e-mail e a palavra-passe arcana.");
+    if (!email.trim()) {
+      setErrorMessage("Informe o e-mail do perfil local ou da conta administrativa.");
       return;
     }
 
     setIsLoading(true);
     triggerHaptic(40);
-
-    setTimeout(() => {
-      // Check for saved users or create standard profile
-      const storedUsersRaw = localStorage.getItem("mestre_arcano_registered_users");
-      let foundUser: UserProfile | null = null;
-
-      if (storedUsersRaw) {
-        try {
-          const registeredUsers: (UserProfile & { password?: string })[] = JSON.parse(storedUsersRaw);
-          const match = registeredUsers.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-          if (match) {
-            foundUser = match;
-          }
-        } catch (err) {
-          console.error("Error reading users", err);
+    try {
+      if (password) {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email.trim(), password, remember: rememberMe }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload.user) {
+          throw new Error(payload.error || "Não foi possível validar a conta administrativa.");
         }
+        onLogin(payload.user as UserProfile, rememberMe);
+        return;
       }
 
-      const emailTrim = email.trim().toLowerCase();
-      const isAdminAccount =
-        emailTrim === "adm@mestrearcano.rpg" ||
-        emailTrim === "admin@mestrearcano.rpg" ||
-        emailTrim === "admin@arcano.rpg" ||
-        emailTrim.startsWith("adm@") ||
-        emailTrim.startsWith("admin@") ||
-        (foundUser && foundUser.role === "Administrador (ADM)");
-
+      const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.registeredUsers);
+      const registeredUsers: UserProfile[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
+      const foundUser = Array.isArray(registeredUsers)
+        ? registeredUsers.find((user) => user.email.toLowerCase() === email.trim().toLowerCase())
+        : undefined;
       if (!foundUser) {
-        // Standard user derived from credentials
-        const username = email.split("@")[0] || (isAdminAccount ? "Administrador" : "Aventureiro");
-        const formattedName = username.charAt(0).toUpperCase() + username.slice(1);
-        foundUser = {
-          id: "usr_" + Date.now(),
-          name: isAdminAccount ? "Administrador Arcano" : formattedName,
-          email: email.trim(),
-          role: isAdminAccount ? "Administrador (ADM)" : "Mestre da Mesa",
-          isAdmin: Boolean(isAdminAccount),
-          avatar: isAdminAccount ? "master" : "wizard",
-          favoriteSystem: "Dungeons & Dragons (D&D)",
-          createdAt: Date.now(),
-        };
-      } else {
-        foundUser = {
-          ...foundUser,
-          isAdmin: Boolean(isAdminAccount || foundUser.role === "Administrador (ADM)"),
-        };
+        throw new Error("Perfil local não encontrado. Crie uma ficha local ou entre como convidado.");
       }
-
+      onLogin({ ...foundUser, role: foundUser.role === "Administrador (ADM)" ? "Mestre da Mesa" : foundUser.role, isAdmin: false, authorization: undefined }, rememberMe);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Falha ao entrar.");
+    } finally {
       setIsLoading(false);
-      onLogin(foundUser);
-    }, 400);
+      setPassword("");
+    }
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
@@ -148,24 +117,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setErrorMessage("Informe um endereço de e-mail válido.");
       return;
     }
-    if (password.length < 4) {
-      setErrorMessage("A senha deve conter ao menos 4 runas/caracteres.");
-      return;
-    }
-
     setIsLoading(true);
     triggerHaptic(50);
 
     setTimeout(() => {
-      const emailTrim = email.trim().toLowerCase();
-      const isAdminRole = role === "Administrador (ADM)" || emailTrim.startsWith("adm") || emailTrim.includes("admin");
+      const safeRole: UserRole = role === "Administrador (ADM)" ? "Mestre da Mesa" : role;
 
       const newUser: UserProfile = {
         id: "usr_" + Date.now(),
         name: name.trim(),
         email: email.trim(),
-        role: isAdminRole ? "Administrador (ADM)" : role,
-        isAdmin: isAdminRole,
+        role: safeRole,
+        isAdmin: false,
         avatar: selectedAvatar,
         favoriteSystem,
         createdAt: Date.now(),
@@ -173,16 +136,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       // Save to registered list
       try {
-        const storedUsersRaw = localStorage.getItem("mestre_arcano_registered_users");
+        const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.registeredUsers);
         const registeredUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-        registeredUsers.push({ ...newUser, password });
-        localStorage.setItem("mestre_arcano_registered_users", JSON.stringify(registeredUsers));
+        const withoutDuplicate = Array.isArray(registeredUsers)
+          ? registeredUsers.filter((user: UserProfile) => user.email.toLowerCase() !== newUser.email.toLowerCase())
+          : [];
+        withoutDuplicate.push(newUser);
+        if (!persistSafely(STORAGE_KEYS.registeredUsers, withoutDuplicate)) {
+          throw new Error("O armazenamento local está cheio. Exporte um backup ou libere espaço antes de criar o perfil.");
+        }
       } catch (err) {
-        console.error("Failed to save registered user", err);
+        setIsLoading(false);
+        setErrorMessage(err instanceof Error ? err.message : "Não foi possível salvar o perfil local.");
+        return;
       }
 
       setIsLoading(false);
-      onLogin(newUser);
+      onLogin(newUser, true);
     }, 450);
   };
 
@@ -202,23 +172,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         isAdmin: false,
       };
       setIsLoading(false);
-      onLogin(guestUser);
+      onLogin(guestUser, false);
     }, 250);
   };
 
-  const handleQuickDemo = (demoType: "admin" | "master" | "player") => {
+  const handleQuickDemo = (demoType: "master" | "player") => {
     triggerHaptic(30);
-    if (demoType === "admin") {
-      setEmail("adm@mestrearcano.rpg");
-      setPassword("admin123");
-    } else if (demoType === "master") {
-      setEmail("mestre@arcano.rpg");
-      setPassword("grimorio123");
-    } else {
-      setEmail("jogador@taverna.rpg");
-      setPassword("espada123");
-    }
-    setTab("login");
+    const isMaster = demoType === "master";
+    onLogin({
+      id: isMaster ? "demo-master" : "demo-player",
+      name: isMaster ? "Mestre de Demonstração" : "Jogador de Demonstração",
+      email: isMaster ? "mestre@demo.local" : "jogador@demo.local",
+      role: isMaster ? "Mestre da Mesa" : "Jogador Explorador",
+      avatar: isMaster ? "master" : "warrior",
+      favoriteSystem: "Dungeons & Dragons (D&D)",
+      createdAt: Date.now(),
+      isAdmin: false,
+    }, false);
   };
 
   return (
@@ -342,19 +312,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-[11px] font-mono uppercase tracking-wider text-[#A79C82]">
-                      Palavra-Passe Arcana
+                      Senha administrativa (opcional)
                     </label>
                     <div className="flex items-center gap-2 text-[10px] font-mono">
-                      <span className="text-[#8A8270]">Demo:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDemo("admin")}
-                        className="text-[#DFB56C] hover:underline font-bold"
-                        title="Preencher com credenciais de Administrador (ADM)"
-                      >
-                        👑 ADM
-                      </button>
-                      <span className="text-[#38352A]">•</span>
+                      <span className="text-[#8A8270]">Acesso rápido:</span>
                       <button
                         type="button"
                         onClick={() => handleQuickDemo("master")}
@@ -363,22 +324,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       >
                         Mestre
                       </button>
+                      <span className="text-[#38352A]">•</span>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickDemo("player")}
+                        className="text-[#8DAE8F] hover:underline"
+                        title="Entrar como jogador de demonstração"
+                      >
+                        Jogador
+                      </button>
                     </div>
                   </div>
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
                       type={showPassword ? "text" : "password"}
-                      required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="Somente para ADM do servidor"
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-10 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors font-mono"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="p-1.5 text-[#A79C82] hover:text-[#EFE8D8] absolute right-2.5 top-1/2 -translate-y-1/2"
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -393,18 +364,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       onChange={(e) => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded border-[#38352A] bg-[#15140F] text-[#7A2E27] accent-[#7A2E27]"
                     />
-                    <span>Lembrar meu grimório</span>
+                    <span>Manter perfil neste navegador</span>
                   </label>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      alert("Para recuperar seu acesso, utilize o modo Demo ou cadastre uma nova ficha de aventureiro.");
-                    }}
-                    className="text-[#DFB56C] hover:underline text-[11px]"
-                  >
-                    Esqueceu a senha?
-                  </button>
+                  <span className="text-[#8A8270] text-[10px] text-right">
+                    Perfis locais entram sem senha; ADM é validado pelo servidor.
+                  </span>
                 </div>
 
                 <button
@@ -459,40 +424,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
-                      Palavra-Passe
-                    </label>
-                    <div className="relative">
-                      <KeyRound className="w-4 h-4 text-[#A79C82] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        required
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Mínimo 4 runas"
-                        className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-9 pr-8 text-xs text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
+                <div>
                     <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
                       Papel na Mesa
                     </label>
                     <select
                       value={role}
-                      onChange={(e) => setRole(e.target.value as any)}
+                      onChange={(e) => setRole(e.target.value as UserRole)}
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
                     >
-                      <option value="Administrador (ADM)">👑 Administrador (ADM - Acesso ao DB)</option>
                       <option value="Mestre da Mesa">Mestre da Mesa (DM/GM)</option>
                       <option value="Jogador Explorador">Jogador Explorador</option>
                       <option value="Criador de Conteúdo">Criador de Homebrews</option>
                       <option value="Guardião do Saber">Guardião do Saber</option>
                     </select>
-                  </div>
                 </div>
 
                 {/* Favorite System */}
@@ -505,7 +450,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                     onChange={(e) => setFavoriteSystem(e.target.value as RpgSystem)}
                     className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
                   >
-                    {SYSTEMS.map((s) => (
+                    {RPG_SYSTEMS.map((s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
@@ -567,17 +512,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 Acesso Rápido para Testes:
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo("admin")}
-                  className="py-2 px-2 bg-[#15140F] hover:bg-[#25231B] border border-[#DFB56C]/50 hover:border-[#DFB56C] text-[#DFB56C] text-xs font-mono rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group"
-                  title="Entrar com conta de Administrador (acesso ao Banco de Dados)"
-                >
-                  <Crown className="w-3.5 h-3.5 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-                  <span className="font-bold">👑 ADM (DB)</span>
-                </button>
-
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => handleQuickDemo("master")}

@@ -1,15 +1,32 @@
 import { useEffect } from "react";
+import { persistSafely, persistTextSafely } from "../utils/storageGuard";
 
 /** Persist state after a quiet period instead of serializing on every keystroke. */
-export function useDebouncedLocalStorage<T>(key: string, value: T, delay = 400): void {
+export function useDebouncedLocalStorage<T>(
+  key: string,
+  value: T,
+  delay = 500,
+  maxBytes?: number,
+  onError?: (key: string) => void,
+): void {
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (error) {
-        console.warn(`Não foi possível salvar ${key}. O armazenamento pode estar cheio.`, error);
-      }
+      if (!persistSafely(key, value, maxBytes)) onError?.(key);
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [key, value, delay]);
+  }, [key, value, delay, maxBytes, onError]);
+}
+
+export function useDebouncedLocalStorageText(
+  key: string,
+  value: string,
+  delay = 300,
+  onError?: (key: string) => void,
+): void {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!persistTextSafely(key, value)) onError?.(key);
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [key, value, delay, onError]);
 }

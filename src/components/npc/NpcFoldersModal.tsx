@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   X,
   Users,
@@ -27,6 +27,13 @@ interface NpcFoldersModalProps {
   onSpawnNpcToMap?: (npc: NpcEntry) => void;
 }
 
+const DEFAULT_SAMPLE_FOLDERS: NpcFolder[] = [
+  { id: "f-viloes", name: "Vilões & Inimigos", color: "#C4645A" },
+  { id: "f-aliados", name: "Aliados & Patrões", color: "#8DAE8F" },
+  { id: "f-cidade", name: "Cidadãos & Mercadores", color: "#DFB56C" },
+  { id: "f-faccao", name: "Guilda das Sombras", color: "#9C7BA8" },
+];
+
 export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
   isOpen,
   onClose,
@@ -42,30 +49,23 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
   const [isEditingNpc, setIsEditingNpc] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
+  const currentFolders = folders.length > 0 ? folders : DEFAULT_SAMPLE_FOLDERS;
+  const filteredNpcs = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return npcs.filter((npc) => {
+      const matchesSearch =
+        npc.name.toLowerCase().includes(term) ||
+        npc.titleOrRole.toLowerCase().includes(term) ||
+        (npc.faction || "").toLowerCase().includes(term);
+      const matchesFolder =
+        selectedFolderId === "all" ||
+        (selectedFolderId === "unorganized" && !npc.folderId) ||
+        npc.folderId === selectedFolderId;
+      return matchesSearch && matchesFolder;
+    });
+  }, [npcs, searchTerm, selectedFolderId]);
+
   if (!isOpen) return null;
-
-  const defaultSampleFolders: NpcFolder[] = [
-    { id: "f-viloes", name: "Vilões & Inimigos", color: "#C4645A" },
-    { id: "f-aliados", name: "Aliados & Patrões", color: "#8DAE8F" },
-    { id: "f-cidade", name: "Cidadãos & Mercadores", color: "#DFB56C" },
-    { id: "f-faccao", name: "Guilda das Sombras", color: "#9C7BA8" },
-  ];
-
-  const currentFolders = folders.length > 0 ? folders : defaultSampleFolders;
-
-  const filteredNpcs = npcs.filter((npc) => {
-    const matchesSearch =
-      npc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      npc.titleOrRole.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (npc.faction || "").toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesFolder =
-      selectedFolderId === "all" ||
-      (selectedFolderId === "unorganized" && !npc.folderId) ||
-      npc.folderId === selectedFolderId;
-
-    return matchesSearch && matchesFolder;
-  });
 
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
@@ -116,7 +116,7 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
+    <div role="dialog" aria-modal="true" aria-label="Gerenciador de NPCs" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-[#1C1A14] border-b border-[#38352A] flex items-center justify-between">
@@ -138,6 +138,8 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar gerenciador de NPCs"
+            title="Fechar"
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-xl transition-colors"
           >
             <X className="w-5 h-5" />

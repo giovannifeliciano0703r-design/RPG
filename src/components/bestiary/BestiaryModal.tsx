@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import {
   X,
   Skull,
@@ -67,31 +67,27 @@ export const BestiaryModal: React.FC<BestiaryModalProps> = ({
   const [selectedSystem, setSelectedSystem] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
   const [selectedCr, setSelectedCr] = useState<string>("all");
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
+  const filteredMonsters = useMemo(() => {
+    const term = deferredSearchTerm.toLowerCase();
+    return allMonsters.filter((monster) => {
+      const matchesSearch =
+        monster.name.toLowerCase().includes(term) ||
+        monster.creatureType.toLowerCase().includes(term) ||
+        monster.system?.toLowerCase().includes(term);
+      const matchesSystem = selectedSystem === "all" || monster.system?.toLowerCase().includes(selectedSystem.toLowerCase());
+      const matchesType = selectedType === "all" || monster.creatureType.toLowerCase().includes(selectedType.toLowerCase());
+      const matchesCr =
+        selectedCr === "all" ||
+        (selectedCr === "low" && ["1/8", "1/4", "1/2", "1"].includes(monster.challengeRating)) ||
+        (selectedCr === "mid" && ["2", "3", "4", "5"].includes(monster.challengeRating)) ||
+        (selectedCr === "high" && parseInt(monster.challengeRating, 10) >= 6);
+      return matchesSearch && matchesSystem && matchesType && matchesCr;
+    });
+  }, [allMonsters, deferredSearchTerm, selectedCr, selectedSystem, selectedType]);
 
   if (!isOpen) return null;
-
-  const filteredMonsters = allMonsters.filter((m) => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      m.name.toLowerCase().includes(term) ||
-      m.creatureType.toLowerCase().includes(term) ||
-      (m.system && m.system.toLowerCase().includes(term));
-
-    const matchesSystem =
-      selectedSystem === "all" ||
-      (m.system && m.system.toLowerCase().includes(selectedSystem.toLowerCase()));
-
-    const matchesType =
-      selectedType === "all" || m.creatureType.toLowerCase().includes(selectedType.toLowerCase());
-
-    const matchesCr =
-      selectedCr === "all" ||
-      (selectedCr === "low" && ["1/8", "1/4", "1/2", "1"].includes(m.challengeRating)) ||
-      (selectedCr === "mid" && ["2", "3", "4", "5"].includes(m.challengeRating)) ||
-      (selectedCr === "high" && parseInt(m.challengeRating, 10) >= 6);
-
-    return matchesSearch && matchesSystem && matchesType && matchesCr;
-  });
 
   const handleDuplicate = (monster: MonsterStatBlock) => {
     const duplicated: MonsterStatBlock = {
@@ -116,7 +112,7 @@ export const BestiaryModal: React.FC<BestiaryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
+    <div role="dialog" aria-modal="true" aria-label="Bestiário" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-[#1C1A14] border-b border-[#38352A] flex items-center justify-between">
@@ -138,6 +134,8 @@ export const BestiaryModal: React.FC<BestiaryModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar bestiário"
+            title="Fechar"
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -232,7 +230,7 @@ export const BestiaryModal: React.FC<BestiaryModalProps> = ({
                   <button
                     key={m.id}
                     onClick={() => setSelectedMonster(m)}
-                    className={`w-full p-2.5 rounded-xl text-left border flex items-center justify-between transition-all cursor-pointer ${
+                    className={`content-auto-list-item w-full p-2.5 rounded-xl text-left border flex items-center justify-between transition-all cursor-pointer ${
                       isSelected
                         ? "bg-[#DFB56C]/15 border-[#DFB56C] text-[#EFE8D8] shadow-sm ring-1 ring-[#DFB56C]/30"
                         : "bg-[#1C1A14] border-[#38352A] text-[#A79C82] hover:border-[#DFB56C]/40 hover:text-[#EFE8D8]"
@@ -287,6 +285,9 @@ export const BestiaryModal: React.FC<BestiaryModalProps> = ({
                   <h3 className="text-xl sm:text-2xl font-serif font-bold text-[#DFB56C]">{selectedMonster.name}</h3>
                   <p className="text-xs text-[#A79C82] italic">
                     {selectedMonster.size} {selectedMonster.creatureType}, {selectedMonster.alignment}
+                  </p>
+                  <p className="mt-1 text-[10px] font-mono text-[#8A8270]">
+                    {selectedMonster.sourceAttribution || "Conteúdo de demonstração não oficial; confirme a proveniência antes de redistribuir."}
                   </p>
                 </div>
 

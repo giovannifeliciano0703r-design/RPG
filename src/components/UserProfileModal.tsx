@@ -17,6 +17,7 @@ import {
   Flame,
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
+import { RPG_SYSTEMS } from "../domain/rpgSystems";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -28,20 +29,6 @@ interface UserProfileModalProps {
   messagesCount: number;
   rulesCount: number;
 }
-
-const SYSTEMS: RpgSystem[] = [
-  "Dungeons & Dragons (D&D)",
-  "Pathfinder",
-  "Tormenta20 (T20)",
-  "Vampiro: A Máscara (Storyteller)",
-  "Call of Cthulhu",
-  "GURPS",
-  "Savage Worlds",
-  "Fate Core",
-  "Cyberpunk Red",
-  "Old Dragon",
-  "Outro / não especificar",
-];
 
 const AVATARS = [
   { id: "wizard", label: "Mago Arcanista", icon: Wand2, color: "text-[#DFB56C] bg-[#DFB56C]/10 border-[#DFB56C]/40" },
@@ -64,7 +51,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const isAdmin = isUserAdmin(user);
   const [name, setName] = useState(user.name);
-  const [role, setRole] = useState<UserRole>(user.role || (user.isAdmin ? "Administrador (ADM)" : "Mestre da Mesa"));
+  const [role, setRole] = useState<UserRole>(user.role || "Mestre da Mesa");
   const [favoriteSystem, setFavoriteSystem] = useState(user.favoriteSystem || "Dungeons & Dragons (D&D)");
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "wizard");
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -73,12 +60,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const isAdminRole = role === "Administrador (ADM)" || (role as string) === "Admin";
     const updated: UserProfile = {
       ...user,
       name: name.trim() || user.name,
-      role,
-      isAdmin: isAdminRole ? true : Boolean(user.isAdmin && role !== "Jogador Explorador"),
+      role: isAdmin ? user.role : role === "Administrador (ADM)" ? "Mestre da Mesa" : role,
+      isAdmin: isAdmin,
       favoriteSystem,
       avatar: selectedAvatar,
     };
@@ -99,7 +85,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const CurrentAvatarIcon = getAvatarIcon(selectedAvatar);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Perfil do usuário" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
       <div className="w-full max-w-lg bg-[#1D1B14] border border-[#38352A] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-4 sm:p-5 bg-[#15140F] border-b border-[#38352A] flex items-center justify-between">
@@ -128,6 +114,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#38352A] rounded-lg transition-colors"
+            aria-label="Fechar perfil"
+            title="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -178,12 +166,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
                 Papel na Mesa
               </label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
-              >
-                <option value="Administrador (ADM)">👑 Administrador (ADM - Acesso ao DB)</option>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  disabled={isAdmin}
+                  className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
+                >
+                  {isAdmin && <option value="Administrador (ADM)">👑 Administrador validado pelo servidor</option>}
                 <option value="Mestre da Mesa">Mestre da Mesa</option>
                 <option value="Jogador Explorador">Jogador Explorador</option>
                 <option value="Criador de Conteúdo">Criador de Homebrews</option>
@@ -200,7 +189,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 onChange={(e) => setFavoriteSystem(e.target.value as RpgSystem)}
                 className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
               >
-                {SYSTEMS.map((s) => (
+                {RPG_SYSTEMS.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>

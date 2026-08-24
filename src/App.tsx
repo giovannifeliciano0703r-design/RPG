@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -62,12 +62,7 @@ import {
 } from "./types";
 import { parseResponseBlocks } from "./utils/cardParser";
 import { RpgCard } from "./components/RpgCard";
-import { DiceRoller } from "./components/DiceRoller";
-import { GrimoireDrawer } from "./components/GrimoireDrawer";
-import { QuickPrompts } from "./components/QuickPrompts";
-import { KnowledgeBaseModal } from "./components/KnowledgeBaseModal";
 import { LoginScreen } from "./components/LoginScreen";
-import { UserProfileModal } from "./components/UserProfileModal";
 import { DEFAULT_KNOWLEDGE_ENTRIES } from "./data/defaultKnowledge";
 import { DEFAULT_MONSTERS } from "./data/defaultMonsters";
 import {
@@ -81,34 +76,31 @@ import {
   DEFAULT_INITIATIVE_STATE,
 } from "./data/defaultAppData";
 
-// New Modals for the 8 modules
-import { CharacterSheetModal } from "./components/character/CharacterSheetModal";
-import { BestiaryModal } from "./components/bestiary/BestiaryModal";
-import { MacroManagerModal } from "./components/macros/MacroManagerModal";
-import { MediaLibraryModal } from "./components/media/MediaLibraryModal";
-import { ImageLightboxModal } from "./components/media/ImageLightboxModal";
-import { NpcFoldersModal } from "./components/npc/NpcFoldersModal";
-import { CampaignManagerModal } from "./components/campaign/CampaignManagerModal";
 import { CampaignDualChat } from "./components/campaign/CampaignDualChat";
 import { BattlemapCanvas } from "./components/vtt/BattlemapCanvas";
 import { InitiativeTrackerBar } from "./components/vtt/InitiativeTrackerBar";
 import { executeMacro } from "./utils/macroEngine";
 import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
 import { HubView } from "./components/hub/HubView";
+import { normalizeRpgSystem } from "./domain/rpgSystems";
+import { sanitizeLocalProfile } from "./utils/securityMigration";
+import { useAppPersistence } from "./hooks/useAppPersistence";
+import { useMediaAssets } from "./hooks/useMediaAssets";
+import { ConfirmDialog } from "./components/ui/Dialog";
+import { STORAGE_KEYS } from "./constants/storageKeys";
+import { persistSafely } from "./utils/storageGuard";
 
-const SYSTEMS: RpgSystem[] = [
-  "Dungeons & Dragons (D&D)",
-  "Pathfinder",
-  "Tormenta20 (T20)",
-  "Vampiro: A Máscara (Storyteller)",
-  "Call of Cthulhu",
-  "GURPS",
-  "Savage Worlds",
-  "Fate Core",
-  "Cyberpunk Red",
-  "Old Dragon",
-  "Outro / não especificar",
-];
+const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
+const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
+const MacroManagerModal = React.lazy(() => import("./components/macros/MacroManagerModal").then((module) => ({ default: module.MacroManagerModal })));
+const MediaLibraryModal = React.lazy(() => import("./components/media/MediaLibraryModal").then((module) => ({ default: module.MediaLibraryModal })));
+const ImageLightboxModal = React.lazy(() => import("./components/media/ImageLightboxModal").then((module) => ({ default: module.ImageLightboxModal })));
+const NpcFoldersModal = React.lazy(() => import("./components/npc/NpcFoldersModal").then((module) => ({ default: module.NpcFoldersModal })));
+const CampaignManagerModal = React.lazy(() => import("./components/campaign/CampaignManagerModal").then((module) => ({ default: module.CampaignManagerModal })));
+const DiceRoller = React.lazy(() => import("./components/DiceRoller").then((module) => ({ default: module.DiceRoller })));
+const KnowledgeBaseModal = React.lazy(() => import("./components/KnowledgeBaseModal").then((module) => ({ default: module.KnowledgeBaseModal })));
+const GrimoireDrawer = React.lazy(() => import("./components/GrimoireDrawer").then((module) => ({ default: module.GrimoireDrawer })));
+const UserProfileModal = React.lazy(() => import("./components/UserProfileModal").then((module) => ({ default: module.UserProfileModal })));
 
 const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; icon: string }> = {
   "Dungeons & Dragons (D&D)": { short: "D&D 5e", subtitle: "D20 • Fantasia Medieval", icon: "⚔️" },
@@ -126,30 +118,27 @@ const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; 
 
 const INITIAL_WELCOME = `Saudações, aventureiro! Sou o **Mestre Arcano**, seu códice vivo, VTT e oráculo de regras para RPGs de mesa. 
 
-Consulte qualquer mecânica, gere fichas inteligentes, navegue pelo Bestiário com dezenas de monstros, execute macros de combate, use o mapa tático interativo com névoa de guerra ou gerencie campanhas multiplayer em tempo real!
+Consulte qualquer mecânica, gere fichas inteligentes, navegue pelo Bestiário, execute macros de combate, use o mapa tático interativo com névoa de guerra ou gerencie campanhas locais!
 
 **Recursos disponíveis na barra de ferramentas:**
 - 📜 **Ficha Inteligente**: Cálculo automático de bônus, magias, perícias e bônus temporários.
 - 💀 **Bestiário de Monstros**: Blocos de estatísticas com rolagem direta de ataque e spawn no mapa.
 - ⚡ **Macros de Rolagem**: Fórmulas com variáveis automáticas da ficha (@{strMod}, @{profBonus}).
 - 🗺️ **Mesa Virtual & Battlemap**: Grade interativa, medição de alcance, névoa e tokens com barra de vida.
-- 👑 **Campanhas Multiplayer**: Papéis de GM/Co-GM com permissões granulares e Chat IC/OOC.`;
+- 👑 **Campanhas locais**: Papéis de GM/Co-GM com permissões granulares e Chat IC/OOC no navegador atual.`;
 
 export default function App() {
   // Current view mode: 'hub' (Dashboard Hub) | 'codex' (AI Rules Chat) | 'vtt' (Virtual Tabletop Battlemap + Dual Chat)
   const [activeView, setActiveView] = useState<"hub" | "codex" | "vtt">("hub");
 
   const [activeSystem, setActiveSystem] = useState<RpgSystem>(() => {
-    const saved = localStorage.getItem("mestre_arcano_system");
-    if (saved && SYSTEMS.includes(saved as RpgSystem)) {
-      return saved as RpgSystem;
-    }
-    return "Dungeons & Dragons (D&D)";
+    const saved = localStorage.getItem(STORAGE_KEYS.system);
+    return normalizeRpgSystem(saved);
   });
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_chat_history");
+      const saved = localStorage.getItem(STORAGE_KEYS.chatHistory);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -170,8 +159,11 @@ export default function App() {
 
   const [savedCards, setSavedCards] = useState<ParsedRpgCard[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_grimoire");
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem(STORAGE_KEYS.grimoire);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error("Error loading grimoire:", e);
     }
@@ -180,7 +172,7 @@ export default function App() {
 
   const [customKnowledge, setCustomKnowledge] = useState<KnowledgeEntry[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_custom_knowledge");
+      const saved = localStorage.getItem(STORAGE_KEYS.customKnowledge);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -193,23 +185,29 @@ export default function App() {
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_current_user");
+      const saved = localStorage.getItem(STORAGE_KEYS.currentUser);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error("Error loading user profile", e);
     }
     return null;
   });
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Module 1: Character Sheets State
   const [characters, setCharacters] = useState<CharacterSheet[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_characters");
+      const saved = localStorage.getItem(STORAGE_KEYS.characters);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((character: CharacterSheet) => ({
+            ...character,
+            system: normalizeRpgSystem(character.system),
+          }));
+        }
       }
     } catch (e) {}
     return [URICH_CHARACTER, DEFAULT_CHARACTER];
@@ -221,7 +219,7 @@ export default function App() {
   // Module 2: Bestiary State
   const [monsters, setMonsters] = useState<MonsterStatBlock[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_monsters");
+      const saved = localStorage.getItem(STORAGE_KEYS.monsters);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -238,7 +236,7 @@ export default function App() {
   // Module 3: Macros State
   const [macros, setMacros] = useState<Macro[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_macros");
+      const saved = localStorage.getItem(STORAGE_KEYS.macros);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_MACROS;
@@ -246,38 +244,40 @@ export default function App() {
   const [isMacroOpen, setIsMacroOpen] = useState(false);
 
   // Module 4 & 5: Media Library & Lightbox State
-  const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>(() => {
-    try {
-      const saved = localStorage.getItem("mestre_arcano_media");
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return [];
-  });
+  const { mediaAssets, saveMediaAssets, mediaStorageError, clearMediaStorageError } = useMediaAssets();
   const [isMediaOpen, setIsMediaOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title?: string } | null>(null);
 
   // Module 6: NPC Folders State
   const [npcFolders, setNpcFolders] = useState<NpcFolder[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_npc_folders");
+      const saved = localStorage.getItem(STORAGE_KEYS.npcFolders);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_NPC_FOLDERS;
   });
   const [npcs, setNpcs] = useState<NpcEntry[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_npcs");
+      const saved = localStorage.getItem(STORAGE_KEYS.npcs);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_NPCS;
   });
   const [isNpcFoldersOpen, setIsNpcFoldersOpen] = useState(false);
 
-  // Module 7: Multiplayer Campaigns & Dual Chat State
+  // Module 7: Local Campaigns & Dual Chat State
   const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_campaigns");
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem(STORAGE_KEYS.campaigns);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((campaign: Campaign) => ({
+            ...campaign,
+            system: normalizeRpgSystem(campaign.system),
+          }));
+        }
+      }
     } catch (e) {}
     return [DEFAULT_INITIAL_CAMPAIGN];
   });
@@ -285,7 +285,7 @@ export default function App() {
   const [isCampaignOpen, setIsCampaignOpen] = useState(false);
   const [campaignMessages, setCampaignMessages] = useState<ChatMessage[]>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_campaign_chat");
+      const saved = localStorage.getItem(STORAGE_KEYS.campaignChat);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return [
@@ -314,14 +314,14 @@ export default function App() {
   // Module 8: Interactive Battlemap & Initiative Tracker State
   const [battleMapData, setBattleMapData] = useState<BattleMapData>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_battlemap");
+      const saved = localStorage.getItem(STORAGE_KEYS.battlemap);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_BATTLEMAP;
   });
   const [initiativeState, setInitiativeState] = useState<InitiativeState>(() => {
     try {
-      const saved = localStorage.getItem("mestre_arcano_initiative");
+      const saved = localStorage.getItem(STORAGE_KEYS.initiative);
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_INITIATIVE_STATE;
@@ -338,72 +338,65 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [storageNotice, setStorageNotice] = useState<string | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Sync to local storage
-  useEffect(() => {
-    localStorage.setItem("mestre_arcano_system", activeSystem);
-  }, [activeSystem]);
+  const handleStorageError = useCallback((key: string) => {
+    setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_chat_history", JSON.stringify(messages));
-    } catch (e) {}
-  }, [messages]);
+    let cancelled = false;
+    fetch("/api/auth/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
+      .then(async (response) => (response.ok ? response.json() : { user: null }))
+      .then((payload) => {
+        if (!cancelled && payload.user) setCurrentUser(payload.user as UserProfile);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setIsAuthChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_grimoire", JSON.stringify(savedCards));
-    } catch (e) {}
-  }, [savedCards]);
+  useAppPersistence(
+    {
+      activeSystem,
+      messages,
+      savedCards,
+      customKnowledge,
+      characters,
+      monsters,
+      macros,
+      npcFolders,
+      npcs,
+      campaigns,
+      campaignMessages,
+      battleMapData,
+      initiativeState,
+    },
+    handleStorageError,
+  );
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_characters", JSON.stringify(characters));
-    } catch (e) {}
-  }, [characters]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_monsters", JSON.stringify(monsters));
-    } catch (e) {}
-  }, [monsters]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_macros", JSON.stringify(macros));
-    } catch (e) {}
-  }, [macros]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_media", JSON.stringify(mediaAssets));
-    } catch (e) {}
-  }, [mediaAssets]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_npc_folders", JSON.stringify(npcFolders));
-      localStorage.setItem("mestre_arcano_npcs", JSON.stringify(npcs));
-    } catch (e) {}
-  }, [npcFolders, npcs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_campaigns", JSON.stringify(campaigns));
-      localStorage.setItem("mestre_arcano_campaign_chat", JSON.stringify(campaignMessages));
-    } catch (e) {}
-  }, [campaigns, campaignMessages]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("mestre_arcano_battlemap", JSON.stringify(battleMapData));
-      localStorage.setItem("mestre_arcano_initiative", JSON.stringify(initiativeState));
-    } catch (e) {}
-  }, [battleMapData, initiativeState]);
+  const matchingMessages = useMemo(
+    () =>
+      searchQuery
+        ? messages.filter((message) => message.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        : messages,
+    [messages, searchQuery],
+  );
+  const hiddenMessageCount = Math.max(0, matchingMessages.length - 250);
+  const displayedMessages = useMemo(() => matchingMessages.slice(-250), [matchingMessages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -570,7 +563,11 @@ export default function App() {
   };
 
   const handleClearChat = () => {
-    if (window.confirm("Deseja realmente limpar o histórico da conversa atual?")) {
+    setPendingConfirmation({
+      title: "Limpar conversa?",
+      description: "O histórico desta conversa será removido do navegador. Esta ação não pode ser desfeita.",
+      confirmLabel: "Limpar histórico",
+      onConfirm: () => {
       const resetMsg: ChatMessage = {
         id: `init-${Date.now()}`,
         role: "assistant",
@@ -579,14 +576,25 @@ export default function App() {
         blocks: parseResponseBlocks(INITIAL_WELCOME),
       };
       setMessages([resetMsg]);
-    }
+      },
+    });
   };
 
-  const handleLogin = (user: UserProfile) => {
+  const handleLogin = (user: UserProfile, remember = true) => {
     setCurrentUser(user);
     try {
-      localStorage.setItem("mestre_arcano_current_user", JSON.stringify(user));
-    } catch (e) {}
+      if (remember) {
+        const saved = persistSafely(
+          STORAGE_KEYS.currentUser,
+          sanitizeLocalProfile(user as unknown as Record<string, unknown>),
+        );
+        if (!saved) handleStorageError(STORAGE_KEYS.currentUser);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.currentUser);
+      }
+    } catch {
+      handleStorageError(STORAGE_KEYS.currentUser);
+    }
     if (user.favoriteSystem) {
       setActiveSystem(user.favoriteSystem);
     }
@@ -606,8 +614,9 @@ export default function App() {
     setIsCampaignOpen(false);
     setCurrentUser(null);
     try {
-      localStorage.removeItem("mestre_arcano_current_user");
+      localStorage.removeItem(STORAGE_KEYS.currentUser);
     } catch (e) {}
+    void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
   };
 
   // Generate Report via localStorage (100% POST 405 error-free)
@@ -634,23 +643,27 @@ export default function App() {
       generatedAt: Date.now(),
     };
 
-    try {
-      localStorage.setItem("relatorio_data", JSON.stringify(reportData));
-      localStorage.setItem("mestre_arcano_relatorio", JSON.stringify(reportData));
-    } catch (err) {
-      console.error("Erro ao salvar dados do relatório no localStorage:", err);
+    if (!persistSafely(STORAGE_KEYS.reportData, reportData)) {
+      handleStorageError(STORAGE_KEYS.reportData);
+      return;
     }
 
     window.open("/relatorio", "_blank");
   };
 
   const handleUpdateProfile = (updated: UserProfile) => {
-    setCurrentUser(updated);
-    try {
-      localStorage.setItem("mestre_arcano_current_user", JSON.stringify(updated));
-    } catch (e) {}
-    if (updated.favoriteSystem && updated.favoriteSystem !== activeSystem) {
-      setActiveSystem(updated.favoriteSystem);
+    const safeUpdated = isUserAdmin(currentUser)
+      ? { ...updated, role: currentUser!.role, isAdmin: true, authorization: currentUser!.authorization }
+      : { ...updated, role: updated.role === "Administrador (ADM)" ? "Mestre da Mesa" : updated.role, isAdmin: false, authorization: undefined };
+    setCurrentUser(safeUpdated);
+    if (!persistSafely(
+      STORAGE_KEYS.currentUser,
+      sanitizeLocalProfile(safeUpdated as unknown as Record<string, unknown>),
+    )) {
+      handleStorageError(STORAGE_KEYS.currentUser);
+    }
+    if (safeUpdated.favoriteSystem && safeUpdated.favoriteSystem !== activeSystem) {
+      setActiveSystem(safeUpdated.favoriteSystem);
     }
   };
 
@@ -761,21 +774,43 @@ export default function App() {
     }
   };
 
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#12110C] text-[#DFB56C] flex items-center justify-center font-serif">
+        Validando sessão segura…
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
   const isCurrentUserAdmin = isUserAdmin(currentUser);
 
-  const displayedMessages = searchQuery
-    ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
-    : messages;
-
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
   const currentSystemMeta = RPG_SYSTEMS_META.find((s) => s.id === activeSystem) || RPG_SYSTEMS_META[0];
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#14130E] text-[#EFE8D8] font-sans antialiased">
+      {(storageNotice || mediaStorageError) && (
+        <div role="status" className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-[#C4645A] bg-[#1D1B14] p-3 text-xs text-[#EFE8D8] shadow-2xl flex gap-3">
+          <AlertCircle className="w-4 h-4 shrink-0 text-[#C4645A]" />
+          <span>{mediaStorageError || storageNotice}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setStorageNotice(null);
+              clearMediaStorageError();
+            }}
+            aria-label="Fechar aviso de armazenamento"
+            title="Fechar aviso"
+            className="ml-auto text-[#A79C82] hover:text-white"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       {/* Mobile backdrop for sidebar */}
       {isSidebarOpen && (
         <div
@@ -937,7 +972,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-                  <span>Campanha Multiplayer</span>
+                  <span>Campanha local</span>
                 </div>
                 <span className="text-[9px] font-mono text-[#DFB56C]">{campaigns.length}</span>
               </button>
@@ -1188,8 +1223,13 @@ export default function App() {
             {/* Messages Stream */}
             <div id="messages" className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 scroll-smooth">
               <div className="max-w-3xl mx-auto w-full space-y-6 sm:space-y-8">
+                {hiddenMessageCount > 0 && (
+                  <p className="rounded-lg border border-[#38352A] bg-[#1D1B14] p-2 text-center text-xs text-[#A79C82]">
+                    {hiddenMessageCount} mensagens antigas foram ocultadas para manter a conversa rápida. Use a busca para encontrá-las.
+                  </p>
+                )}
                 {displayedMessages.map((msg) => (
-                  <div key={msg.id} className="w-full">
+                  <div key={msg.id} className="content-auto-list-item w-full">
                     {msg.role === "user" ? (
                       <div className="flex justify-end">
                         <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#25231B] border border-[#38352A] text-[#EFE8D8] text-sm leading-relaxed shadow-sm">
@@ -1276,7 +1316,7 @@ export default function App() {
           </div>
         )}
 
-        {/* View Mode 2: VTT BATTLEMAP & MULTIPLAYER DUAL CHAT */}
+        {/* View Mode 2: VTT BATTLEMAP & LOCAL DUAL CHAT */}
         {activeView === "vtt" && (
           <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Interactive Battlemap with Initiative Bar */}
@@ -1346,7 +1386,7 @@ export default function App() {
               />
             </div>
 
-            {/* Right: Multiplayer Dual Chat (IC/OOC) & Macro Roller - Collapsible / Abbreviated */}
+            {/* Right: Local Dual Chat (IC/OOC) & Macro Roller - Collapsible / Abbreviated */}
             {isVttChatOpen && (
               <div className="w-full md:w-96 border-t md:border-t-0 md:border-l border-[#38352A] h-80 md:h-full shrink-0 flex flex-col animate-in fade-in slide-in-from-right-2 duration-200">
                 <CampaignDualChat
@@ -1390,11 +1430,12 @@ export default function App() {
       </main>
 
       {/* ================= ALL 8 FEATURE MODALS ================= */}
+      <React.Suspense fallback={<div role="status" className="fixed bottom-4 right-4 z-[110] rounded-xl bg-[#1D1B14] px-4 py-2 text-xs text-[#DFB56C] shadow-xl">Carregando módulo…</div>}>
 
       {/* 1. Character Sheet Modal */}
-      {editingCharacter && (
+      {isCharacterSheetOpen && editingCharacter && (
         <CharacterSheetModal
-          isOpen={isCharacterSheetOpen}
+          isOpen
           sheet={editingCharacter}
           onClose={() => setIsCharacterSheetOpen(false)}
           onSave={(updated) => {
@@ -1407,70 +1448,83 @@ export default function App() {
       )}
 
       {/* 2. Monster Bestiary Modal */}
-      <BestiaryModal
-        isOpen={isBestiaryOpen}
-        onClose={() => setIsBestiaryOpen(false)}
-        monsters={monsters}
-        onSaveMonsters={setMonsters}
-        onSpawnToMap={handleSpawnMonsterToMap}
-        onRollAction={(actionName, bonus, damageDice) => {
-          handleBroadcastRoll(actionName, bonus);
-        }}
-      />
+      {isBestiaryOpen && (
+        <BestiaryModal
+          isOpen
+          onClose={() => setIsBestiaryOpen(false)}
+          monsters={monsters}
+          onSaveMonsters={setMonsters}
+          onSpawnToMap={handleSpawnMonsterToMap}
+          onRollAction={(actionName, bonus, damageDice) => {
+            handleBroadcastRoll(actionName, bonus);
+          }}
+        />
+      )}
 
       {/* 3. Macro Manager Modal */}
-      <MacroManagerModal
-        isOpen={isMacroOpen}
-        onClose={() => setIsMacroOpen(false)}
-        macros={macros}
-        onSaveMacros={setMacros}
-        activeSheet={activeCharacter}
-        onExecuteMacro={handleExecuteMacro}
-        isGm={isCurrentGm}
-      />
+      {isMacroOpen && (
+        <MacroManagerModal
+          isOpen
+          onClose={() => setIsMacroOpen(false)}
+          macros={macros}
+          onSaveMacros={setMacros}
+          activeSheet={activeCharacter}
+          onExecuteMacro={handleExecuteMacro}
+          isGm={isCurrentGm}
+        />
+      )}
 
       {/* 4 & 5. Media Library & Lightbox Modals */}
-      <MediaLibraryModal
-        isOpen={isMediaOpen}
+      {isMediaOpen && (
+        <MediaLibraryModal
+        isOpen
         onClose={() => setIsMediaOpen(false)}
         assets={mediaAssets}
-        onSaveAssets={setMediaAssets}
+        onSaveAssets={saveMediaAssets}
         userId={currentUser.id}
         onViewHdImage={(url, title) => setLightboxImage({ url, title })}
-      />
+        />
+      )}
 
-      <ImageLightboxModal
-        isOpen={!!lightboxImage}
+      {lightboxImage && (
+        <ImageLightboxModal
+        isOpen
         imageUrl={lightboxImage?.url || null}
         title={lightboxImage?.title}
         onClose={() => setLightboxImage(null)}
-      />
+        />
+      )}
 
       {/* 6. NPC Folders Modal */}
-      <NpcFoldersModal
-        isOpen={isNpcFoldersOpen}
+      {isNpcFoldersOpen && (
+        <NpcFoldersModal
+        isOpen
         onClose={() => setIsNpcFoldersOpen(false)}
         folders={npcFolders}
         npcs={npcs}
         onSaveFolders={setNpcFolders}
         onSaveNpcs={setNpcs}
         onSpawnNpcToMap={handleSpawnNpcToMap}
-      />
+        />
+      )}
 
       {/* 7. Campaign Manager & Permissions Modal */}
-      <CampaignManagerModal
-        isOpen={isCampaignOpen}
+      {isCampaignOpen && (
+        <CampaignManagerModal
+        isOpen
         onClose={() => setIsCampaignOpen(false)}
         campaigns={campaigns}
         activeCampaign={activeCampaign}
         currentUser={currentUser}
         onSelectCampaign={setActiveCampaign}
         onSaveCampaigns={setCampaigns}
-      />
+        />
+      )}
 
       {/* Original Core Modals (Dice, Knowledge, Grimoire, Profile) */}
-      <DiceRoller
-        isOpen={isDiceOpen}
+      {isDiceOpen && (
+        <DiceRoller
+        isOpen
         onClose={() => setIsDiceOpen(false)}
         onSendToChat={(rollText) => {
           if (activeView === "vtt") {
@@ -1491,10 +1545,12 @@ export default function App() {
             handleSendMessage(rollText);
           }
         }}
-      />
+        />
+      )}
 
-      <KnowledgeBaseModal
-        isOpen={isKnowledgeOpen}
+      {isKnowledgeOpen && (
+        <KnowledgeBaseModal
+        isOpen
         onClose={() => setIsKnowledgeOpen(false)}
         entries={customKnowledge}
         onSaveEntry={handleSaveKnowledgeEntry}
@@ -1510,15 +1566,22 @@ export default function App() {
           setInputText(`Explique a regra: ${title}`);
           handleSendMessage(`Explique a regra: ${title}`);
         }}
-      />
+        />
+      )}
 
-      <GrimoireDrawer
-        isOpen={isGrimoireOpen}
+      {isGrimoireOpen && (
+        <GrimoireDrawer
+        isOpen
         onClose={() => setIsGrimoireOpen(false)}
         savedCards={savedCards}
         onRemoveCard={(cardId) => setSavedCards((prev) => prev.filter((c) => c.id !== cardId))}
         onClearAll={() => {
-          if (window.confirm("Deseja apagar todas as fichas arquivadas no Grimório?")) setSavedCards([]);
+          setPendingConfirmation({
+            title: "Esvaziar o Grimório?",
+            description: "Todas as fichas arquivadas serão removidas permanentemente deste navegador.",
+            confirmLabel: "Apagar fichas",
+            onConfirm: () => setSavedCards([]),
+          });
         }}
         onAskFollowUp={(prompt) => {
           setIsGrimoireOpen(false);
@@ -1530,10 +1593,12 @@ export default function App() {
           setIsGrimoireOpen(false);
           setIsDiceOpen(true);
         }}
-      />
+        />
+      )}
 
-      <UserProfileModal
-        isOpen={isProfileOpen}
+      {isProfileOpen && (
+        <UserProfileModal
+        isOpen
         onClose={() => setIsProfileOpen(false)}
         user={currentUser}
         onUpdateUser={handleUpdateProfile}
@@ -1541,7 +1606,9 @@ export default function App() {
         savedCardsCount={savedCards.length}
         messagesCount={messages.filter((m) => m.role === "user").length}
         rulesCount={customKnowledge.filter((e) => e.isActive).length}
-      />
+        />
+      )}
+      </React.Suspense>
 
       {/* 9. RPG System Selector Modal */}
       <SystemSelectorModal
@@ -1552,6 +1619,15 @@ export default function App() {
           setIsMobileSystemOpen(false);
         }}
         onClose={() => setIsMobileSystemOpen(false)}
+      />
+      <ConfirmDialog
+        isOpen={pendingConfirmation !== null}
+        title={pendingConfirmation?.title || "Confirmar ação"}
+        description={pendingConfirmation?.description || ""}
+        confirmLabel={pendingConfirmation?.confirmLabel}
+        destructive
+        onConfirm={() => pendingConfirmation?.onConfirm()}
+        onClose={() => setPendingConfirmation(null)}
       />
     </div>
   );
