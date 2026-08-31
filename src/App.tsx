@@ -57,8 +57,6 @@ import {
   NpcFolder,
   NpcEntry,
   Campaign,
-  BattleMapData,
-  InitiativeState,
 } from "./types";
 import { parseResponseBlocks } from "./utils/cardParser";
 import { RpgCard } from "./components/RpgCard";
@@ -71,9 +69,6 @@ import {
   DEFAULT_MACROS,
   DEFAULT_NPC_FOLDERS,
   DEFAULT_NPCS,
-  DEFAULT_INITIAL_CAMPAIGN,
-  DEFAULT_BATTLEMAP,
-  DEFAULT_INITIATIVE_STATE,
 } from "./data/defaultAppData";
 
 import { CampaignDualChat } from "./components/campaign/CampaignDualChat";
@@ -89,10 +84,11 @@ import { useMediaAssets } from "./hooks/useMediaAssets";
 import { ConfirmDialog } from "./components/ui/Dialog";
 import { STORAGE_KEYS } from "./constants/storageKeys";
 import { persistSafely } from "./utils/storageGuard";
-import { isSupabaseConfigured, supabase } from "./lib/supabase";
-import { toUserProfile } from "./auth/supabaseAuth";
 import { useLiveCampaign } from "./hooks/useLiveCampaign";
 import { uploadCampaignMedia } from "./services/supabaseMedia";
+import { useCampaignWorkspace } from "./hooks/useCampaignWorkspace";
+import { useAppAuth } from "./hooks/useAppAuth";
+import { useCodexWorkspace } from "./hooks/useCodexWorkspace";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -135,68 +131,12 @@ export default function App() {
   // Current view mode: 'hub' (Dashboard Hub) | 'codex' (AI Rules Chat) | 'vtt' (Virtual Tabletop Battlemap + Dual Chat)
   const [activeView, setActiveView] = useState<"hub" | "codex" | "vtt">("hub");
 
-  const [activeSystem, setActiveSystem] = useState<RpgSystem>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.system);
-    return normalizeRpgSystem(saved);
-  });
-
-  const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.chatHistory);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Error loading chat history:", e);
-    }
-    return [
-      {
-        id: "msg-init-welcome",
-        role: "assistant",
-        content: INITIAL_WELCOME,
-        timestamp: Date.now(),
-        blocks: parseResponseBlocks(INITIAL_WELCOME),
-      },
-    ];
-  });
-
-  const [savedCards, setSavedCards] = useState<ParsedRpgCard[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.grimoire);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error("Error loading grimoire:", e);
-    }
-    return [];
-  });
-
-  const [customKnowledge, setCustomKnowledge] = useState<KnowledgeEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.customKnowledge);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (e) {
-      console.error("Error loading custom knowledge base:", e);
-    }
-    return DEFAULT_KNOWLEDGE_ENTRIES;
-  });
-
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.currentUser);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error("Error loading user profile", e);
-    }
-    return null;
-  });
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const {
+    activeSystem, setActiveSystem,
+    messages, setMessages,
+    savedCards, setSavedCards,
+    customKnowledge, setCustomKnowledge,
+  } = useCodexWorkspace(INITIAL_WELCOME);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -269,84 +209,20 @@ export default function App() {
   });
   const [isNpcFoldersOpen, setIsNpcFoldersOpen] = useState(false);
 
-  // Module 7: Local Campaigns & Dual Chat State
-  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.campaigns);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.map((campaign: Campaign) => ({
-            ...campaign,
-            system: normalizeRpgSystem(campaign.system),
-          }));
-        }
-      }
-    } catch (e) {}
-    return [DEFAULT_INITIAL_CAMPAIGN];
-  });
-  const [activeCampaign, setActiveCampaign] = useState<Campaign | null>(campaigns[0] || null);
+  const {
+    campaigns, setCampaigns,
+    activeCampaign, setActiveCampaign,
+    campaignMessages, setCampaignMessages,
+    battleMapData, setBattleMapData,
+    initiativeState, setInitiativeState,
+  } = useCampaignWorkspace();
   const [isCampaignOpen, setIsCampaignOpen] = useState(false);
-  const [campaignMessages, setCampaignMessages] = useState<ChatMessage[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.campaignChat);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return [
-      {
-        id: "msg-camp-1",
-        senderId: "default-gm",
-        senderName: "Mestre Arcano (GM)",
-        channel: "IC",
-        content: "Vocês adentram os portões rangentes das catacumbas. O ar é pesado e tochas crepitam nas paredes de pedra.",
-        timestamp: Date.now() - 3600000,
-        type: "TEXT",
-      },
-      {
-        id: "msg-camp-2",
-        senderId: "default-user",
-        senderName: "Eldrin Lua-Negra",
-        characterId: "char-eldrin-1",
-        channel: "IC",
-        content: "Ergo meu cajado e sussurro uma prece luminosa para revelar as sombras ao redor.",
-        timestamp: Date.now() - 1800000,
-        type: "TEXT",
-      },
-    ];
-  });
-
-  // Module 8: Interactive Battlemap & Initiative Tracker State
-  const [battleMapData, setBattleMapData] = useState<BattleMapData>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.battlemap);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return DEFAULT_BATTLEMAP;
-  });
-  const [initiativeState, setInitiativeState] = useState<InitiativeState>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.initiative);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return DEFAULT_INITIATIVE_STATE;
-  });
   const [isVttChatOpen, setIsVttChatOpen] = useState(false);
 
   const handleSynchronizedCampaign = useCallback((updated: Campaign) => {
     setActiveCampaign(updated);
     setCampaigns((previous) => previous.map((item) => item.id === updated.id ? updated : item));
-  }, []);
-
-  const liveCampaign = useLiveCampaign({
-    campaign: activeCampaign,
-    user: currentUser,
-    battlemap: battleMapData,
-    initiative: initiativeState,
-    setCampaign: handleSynchronizedCampaign,
-    setMessages: setCampaignMessages,
-    setBattlemap: setBattleMapData,
-    setInitiative: setInitiativeState,
-  });
+  }, [setActiveCampaign, setCampaigns]);
 
   // Chat UI controls
   const [inputText, setInputText] = useState("");
@@ -373,35 +249,21 @@ export default function App() {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (isSupabaseConfigured && supabase) {
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!cancelled && data.user) setCurrentUser(await toUserProfile(data.user));
-      }).catch(() => undefined).finally(() => {
-        if (!cancelled) setIsAuthChecking(false);
-      });
-      const { data: listener } = supabase.auth.onAuthStateChange((event) => {
-        if (event === "SIGNED_OUT" && !cancelled) setCurrentUser(null);
-      });
-      return () => {
-        cancelled = true;
-        listener.subscription.unsubscribe();
-      };
-    }
-    fetch("/api/auth/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
-      .then(async (response) => (response.ok ? response.json() : { user: null }))
-      .then((payload) => {
-        if (!cancelled && payload.user) setCurrentUser(payload.user as UserProfile);
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (!cancelled) setIsAuthChecking(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { currentUser, setCurrentUser, isAuthChecking, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
+    onStorageError: handleStorageError,
+    onPreferredSystem: setActiveSystem,
+  });
+
+  const liveCampaign = useLiveCampaign({
+    campaign: activeCampaign,
+    user: currentUser,
+    battlemap: battleMapData,
+    initiative: initiativeState,
+    setCampaign: handleSynchronizedCampaign,
+    setMessages: setCampaignMessages,
+    setBattlemap: setBattleMapData,
+    setInitiative: setInitiativeState,
+  });
 
   useAppPersistence(
     {
@@ -615,23 +477,7 @@ export default function App() {
   };
 
   const handleLogin = (user: UserProfile, remember = true) => {
-    setCurrentUser(user);
-    try {
-      if (remember) {
-        const saved = persistSafely(
-          STORAGE_KEYS.currentUser,
-          sanitizeLocalProfile(user as unknown as Record<string, unknown>),
-        );
-        if (!saved) handleStorageError(STORAGE_KEYS.currentUser);
-      } else {
-        localStorage.removeItem(STORAGE_KEYS.currentUser);
-      }
-    } catch {
-      handleStorageError(STORAGE_KEYS.currentUser);
-    }
-    if (user.favoriteSystem) {
-      setActiveSystem(user.favoriteSystem);
-    }
+    authenticateUser(user, remember);
     setActiveView("hub");
   };
 
@@ -646,12 +492,7 @@ export default function App() {
     setIsMediaOpen(false);
     setIsNpcFoldersOpen(false);
     setIsCampaignOpen(false);
-    setCurrentUser(null);
-    try {
-      localStorage.removeItem(STORAGE_KEYS.currentUser);
-    } catch (e) {}
-    void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
-    if (supabase) void supabase.auth.signOut().catch(() => undefined);
+    clearAuthSession();
   };
 
   // Generate Report via localStorage (100% POST 405 error-free)
