@@ -24,6 +24,8 @@ import { RpgSystem, UserProfile, UserRole } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
 import { STORAGE_KEYS } from "../constants/storageKeys";
 import { persistSafely } from "../utils/storageGuard";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { toUserProfile } from "../auth/supabaseAuth";
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
@@ -73,6 +75,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setIsLoading(true);
     triggerHaptic(40);
     try {
+      if (isSupabaseConfigured && supabase) {
+        if (!password) throw new Error("Informe sua senha para entrar.");
+        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error || !data.user) throw new Error(error?.message || "Não foi possível entrar.");
+        onLogin(await toUserProfile(data.user), rememberMe);
+        return;
+      }
+
       if (password) {
         const response = await fetch("/api/auth/login", {
           method: "POST",
@@ -105,7 +115,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -119,6 +129,31 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
     setIsLoading(true);
     triggerHaptic(50);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        if (password.length < 8) throw new Error("Use uma senha com pelo menos 8 caracteres.");
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { display_name: name.trim(), avatar: selectedAvatar, favorite_system: favoriteSystem } },
+        });
+        if (error) throw error;
+        if (!data.user) throw new Error("Não foi possível criar a conta.");
+        if (!data.session) {
+          setErrorMessage("Conta criada. Confirme o e-mail recebido antes de entrar.");
+          setTab("login");
+          return;
+        }
+        onLogin(await toUserProfile(data.user), true);
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : "Não foi possível criar a conta.");
+      } finally {
+        setIsLoading(false);
+        setPassword("");
+      }
+      return;
+    }
 
     setTimeout(() => {
       const safeRole: UserRole = role === "Administrador (ADM)" ? "Mestre da Mesa" : role;
