@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { RelatorioView } from "./components/RelatorioView.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
-import "./constants/storageKeys";
-import "./utils/securityMigration";
+import { migrateLocalStorageSchema } from "./constants/storageKeys";
+import { migrateStoredUsers } from "./utils/securityMigration";
 import "./index.css";
+
+migrateLocalStorageSchema();
+migrateStoredUsers();
 
 function RootRouter() {
   const [pathname, setPathname] = useState(window.location.pathname);

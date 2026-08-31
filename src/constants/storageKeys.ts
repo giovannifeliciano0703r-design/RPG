@@ -53,5 +53,3 @@ export function migrateLocalStorageSchema(): void {
     console.warn("Não foi possível concluir a migração do armazenamento local.", error);
   }
 }
-
-migrateLocalStorageSchema();

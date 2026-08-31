@@ -548,29 +548,6 @@ export interface Campaign {
   updatedAt: number;
 }
 
-export interface CampaignChatMessage {
-  id: string;
-  campaignId: string;
-  channel: ChatChannel;
-  senderUserId: string;
-  senderName: string; // Character name if IC, Account nick if OOC
-  senderAvatar: string;
-  characterId?: string;
-  content: string;
-  isMacroRoll?: boolean;
-  macroName?: string;
-  rollDetails?: {
-    formula: string;
-    total: number;
-    diceResults: number[];
-    isCrit?: boolean;
-    isFumble?: boolean;
-    label?: string;
-  };
-  attachmentUrl?: string;
-  timestamp: number;
-}
-
 // ==========================================
 // 8. INTERACTIVE VTT BATTLEMAP & TOKENS
 // ==========================================
