@@ -48,6 +48,9 @@ export interface ChatMessage {
   activeSystem?: RpgSystem;
   blocks?: ParsedBlock[];
   isError?: boolean;
+  isFallback?: boolean;
+  confidence?: "high" | "medium" | "low";
+  sources?: Array<{ id: string; title: string; system: string; category: string }>;
   type?: "TEXT" | "ROLL" | "IMAGE" | "SYSTEM";
   rollData?: {
     formula: string;

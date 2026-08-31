@@ -13,11 +13,14 @@ import {
   setAdminSessionCookie,
 } from "./server/auth";
 import { buildKnowledgeContext, selectRelevantKnowledge } from "./server/rag";
+import { getCandidateModels } from "./server/aiConfig";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+const knowledgeSources = (entries: Array<{ id: string; title: string; system: string; category: string }>) =>
+  entries.map(({ id, title, system, category }) => ({ id, title, system, category }));
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "256kb" }));
@@ -29,7 +32,7 @@ app.use((req, res, next) => {
   if (process.env.NODE_ENV === "production") {
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
     );
   }
   next();
@@ -228,7 +231,7 @@ app.post("/api/chat", async (req, res) => {
     if (!ai) {
       // Offline fallback when no GEMINI_API_KEY is configured
       const fallbackText = findFallbackAnswer(message, safeSystem, relevantKnowledge);
-      res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: relevantKnowledge.map((entry) => entry.title) });
+      res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: knowledgeSources(relevantKnowledge) });
       return;
     }
 
@@ -251,11 +254,7 @@ Se a pergunta não especificar sistema ou edição, assuma como foco prioritári
     contents.push({ role: "user", parts: [{ text: message }] });
 
     // Models to attempt in order of preference if 503/high demand occurs
-    const candidateModels = [
-      "gemini-3.7-flash",
-      "gemini-3.6-flash",
-      "gemini-3.1-flash-lite",
-    ];
+    const candidateModels = getCandidateModels(process.env.GEMINI_MODELS);
 
     let responseText: string | null = null;
     let lastError: any = null;
@@ -285,21 +284,26 @@ Se a pergunta não especificar sistema ou edição, assuma como foco prioritári
     }
 
     if (responseText) {
-      res.json({ text: responseText, sources: relevantKnowledge.map((entry) => entry.title) });
+      res.json({
+        text: responseText,
+        isFallback: false,
+        confidence: relevantKnowledge.length ? "high" : "medium",
+        sources: knowledgeSources(relevantKnowledge),
+      });
       return;
     }
 
     // If all candidate models failed or returned empty, use knowledge base fallback
     console.warn("Todos os modelos online ocupados. Ativando Base de Regras Local SRD.");
     const fallbackText = findFallbackAnswer(message, safeSystem, relevantKnowledge);
-    res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: relevantKnowledge.map((entry) => entry.title) });
+    res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: knowledgeSources(relevantKnowledge) });
   } catch (error: any) {
     console.warn("Erro recuperável na rota /api/chat. Utilizando fallback local:", error?.message || error);
     try {
       const { message = "", activeSystem, customKnowledge = [] } = req.body || {};
       const relevantKnowledge = selectRelevantKnowledge(message, customKnowledge, activeSystem);
       const fallbackText = findFallbackAnswer(message, activeSystem, relevantKnowledge);
-      res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: relevantKnowledge.map((entry) => entry.title) });
+      res.json({ text: fallbackText, isFallback: true, confidence: "low", sources: knowledgeSources(relevantKnowledge) });
     } catch (fbErr) {
       res.status(200).json({
         text: `**Mestre Arcano — Consulta**\n- **Status**: Sistema ativo em modo de segurança.\n- **Nota**: A consulta às regras para "${req.body?.message || 'RPG'}" foi processada localmente.`,

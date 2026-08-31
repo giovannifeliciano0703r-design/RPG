@@ -427,6 +427,9 @@ export default function App() {
         timestamp: Date.now(),
         activeSystem,
         blocks,
+        isFallback: data.isFallback === true,
+        confidence: data.confidence === "high" || data.confidence === "medium" ? data.confidence : "low",
+        sources: Array.isArray(data.sources) ? data.sources.slice(0, 6) : [],
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -1146,6 +1149,23 @@ export default function App() {
                           <div className="prose prose-invert max-w-none text-sm text-[#D6CEBE] leading-relaxed">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                           </div>
+                        )}
+                        {(msg.confidence || (msg.sources && msg.sources.length > 0)) && (
+                          <aside className="rounded-xl border border-[#38352A] bg-[#171510] p-3 text-xs text-[#A79C82]" aria-label="Confiança e fontes da resposta">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono uppercase tracking-wide">Confiança:</span>
+                              <span className={msg.confidence === "high" ? "text-[#8DAE8F]" : msg.confidence === "medium" ? "text-[#DFB56C]" : "text-[#C4645A]"}>
+                                {msg.confidence === "high" ? "alta" : msg.confidence === "medium" ? "média" : "baixa"}
+                              </span>
+                              {msg.isFallback && <span className="rounded bg-[#7A2E27]/30 px-2 py-0.5 text-[#C4645A]">fallback local</span>}
+                            </div>
+                            {msg.sources && msg.sources.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {msg.sources.map((source) => <li key={source.id}>• {source.title} — {source.system} ({source.category})</li>)}
+                              </ul>
+                            )}
+                            {(!msg.sources || msg.sources.length === 0) && <p className="mt-2">Sem fonte recuperada; confirme a regra no livro ou SRD aplicável.</p>}
+                          </aside>
                         )}
                       </div>
                     )}

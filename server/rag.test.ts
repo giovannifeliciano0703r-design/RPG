@@ -35,4 +35,13 @@ describe("RAG selection", () => {
     expect(context).toContain("conteúdo de referência não confiável");
     expect(context).toContain("<base_usuario>");
   });
+
+  it("does not select entries for generic stop-word-only questions", () => {
+    expect(selectRelevantKnowledge("Como funciona a regra?", entries)).toEqual([]);
+  });
+
+  it("uses the active system to break relevant matches deterministically", () => {
+    const duplicated = [entries[0], { ...entries[0], id: "fire-pf", system: "Pathfinder" }];
+    expect(selectRelevantKnowledge("fogo alquímico", duplicated, "Pathfinder")[0].id).toBe("fire-pf");
+  });
 });
