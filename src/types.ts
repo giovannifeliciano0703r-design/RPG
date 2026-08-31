@@ -529,6 +529,7 @@ export interface CampaignMember {
 
 export interface Campaign {
   id: string;
+  remoteId?: string;
   inviteCode: string;
   name: string;
   description: string;

@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import type { MediaAlbumType, MediaAsset } from "../types";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -9,7 +10,7 @@ export function validateImageUpload(file: Pick<File, "type" | "size">): string |
   return null;
 }
 
-export async function uploadCampaignMedia(file: File, campaignId?: string) {
+export async function uploadCampaignMedia(file: File, campaignId?: string, album: MediaAlbumType = "Geral"): Promise<MediaAsset> {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const validationError = validateImageUpload(file);
   if (validationError) throw new Error(validationError);
@@ -32,6 +33,19 @@ export async function uploadCampaignMedia(file: File, campaignId?: string) {
     await supabase.storage.from("campaign-media").remove([storagePath]);
     throw error;
   }
-  return data;
+  const { data: signed, error: signedError } = await supabase.storage.from("campaign-media").createSignedUrl(storagePath, 60 * 60 * 24);
+  if (signedError) throw signedError;
+  return {
+    id: data.id as string,
+    userId: auth.user.id,
+    name: file.name.replace(/\.[^/.]+$/, ""),
+    album,
+    originalUrl: signed.signedUrl,
+    thumbnailUrl: signed.signedUrl,
+    fileSizeBytes: file.size,
+    dimensions: { width: 0, height: 0 },
+    mimeType: file.type,
+    tags: [album.toLowerCase()],
+    createdAt: new Date(data.created_at as string).getTime(),
+  };
 }
-
