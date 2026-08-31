@@ -130,6 +130,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
         <div className="flex items-center gap-1">
           <button
             onClick={() => setActiveChannel("IC")}
+            aria-pressed={activeChannel === "IC"}
             className={`px-3 py-1 rounded-lg font-serif font-bold text-xs transition-colors flex items-center gap-1.5 ${
               activeChannel === "IC"
                 ? "bg-[#DFB56C] text-[#15140F]"
@@ -142,6 +143,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
 
           <button
             onClick={() => setActiveChannel("OOC")}
+            aria-pressed={activeChannel === "OOC"}
             className={`px-3 py-1 rounded-lg font-mono text-xs transition-colors flex items-center gap-1.5 ${
               activeChannel === "OOC"
                 ? "bg-[#DFB56C] text-[#15140F] font-bold"
@@ -203,8 +205,10 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
                   </p>
                 </div>
               ) : msg.type === "IMAGE" && msg.imageUrl ? (
-                <div
+                <button
+                  type="button"
                   onClick={() => onViewHdImage(msg.imageUrl!, msg.content)}
+                  aria-label={`Abrir imagem ${msg.content || "Handout"} em alta resolução`}
                   className="relative group rounded-xl overflow-hidden border border-[#38352A] max-w-xs cursor-zoom-in"
                 >
                   <img
@@ -218,7 +222,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
                       <ZoomIn className="w-3.5 h-3.5" /> Ver em Alta Resolução
                     </span>
                   </div>
-                </div>
+                </button>
               ) : (
                 <div className="p-2.5 bg-[#1C1A14] border border-[#38352A] rounded-xl text-[#EFE8D8] whitespace-pre-wrap leading-relaxed">
                   {msg.content}
@@ -246,6 +250,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
               <User className="w-3.5 h-3.5 text-[#DFB56C]" />
               <span className="text-[10px] text-[#A79C82]">Falando como:</span>
               <select
+                aria-label="Personagem usado no chat em personagem"
                 value={activeCharacter?.id || ""}
                 onChange={(e) => {
                   const target = characters.find((c) => c.id === e.target.value);
@@ -269,6 +274,8 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
             <div className="relative">
               <button
                 onClick={() => setShowDicePicker(!showDicePicker)}
+                aria-expanded={showDicePicker}
+                aria-haspopup="menu"
                 className="p-1.5 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#DFB56C] rounded-lg flex items-center gap-1"
                 title="Rolar Dado Rápido"
               >
@@ -315,6 +322,7 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
         <div className="flex gap-1.5">
           <input
             type="text"
+            aria-label={activeChannel === "IC" ? "Mensagem em personagem" : "Mensagem fora de jogo"}
             placeholder={
               activeChannel === "IC"
                 ? `Falar como ${activeCharacter?.name || currentUser.name}...`
@@ -329,6 +337,8 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
           />
           <button
             onClick={handleSend}
+            disabled={!inputText.trim()}
+            aria-label="Enviar mensagem"
             className="p-2 bg-[#DFB56C] hover:bg-[#b08635] text-[#15140F] rounded-xl transition-colors cursor-pointer"
           >
             <Send className="w-4 h-4" />

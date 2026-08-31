@@ -71,9 +71,6 @@ import {
   DEFAULT_NPCS,
 } from "./data/defaultAppData";
 
-import { CampaignDualChat } from "./components/campaign/CampaignDualChat";
-import { BattlemapCanvas } from "./components/vtt/BattlemapCanvas";
-import { InitiativeTrackerBar } from "./components/vtt/InitiativeTrackerBar";
 import { executeMacro } from "./utils/macroEngine";
 import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
 import { HubView } from "./components/hub/HubView";
@@ -101,6 +98,9 @@ const DiceRoller = React.lazy(() => import("./components/DiceRoller").then((modu
 const KnowledgeBaseModal = React.lazy(() => import("./components/KnowledgeBaseModal").then((module) => ({ default: module.KnowledgeBaseModal })));
 const GrimoireDrawer = React.lazy(() => import("./components/GrimoireDrawer").then((module) => ({ default: module.GrimoireDrawer })));
 const UserProfileModal = React.lazy(() => import("./components/UserProfileModal").then((module) => ({ default: module.UserProfileModal })));
+const CampaignDualChat = React.lazy(() => import("./components/campaign/CampaignDualChat").then((module) => ({ default: module.CampaignDualChat })));
+const BattlemapCanvas = React.lazy(() => import("./components/vtt/BattlemapCanvas").then((module) => ({ default: module.BattlemapCanvas })));
+const InitiativeTrackerBar = React.lazy(() => import("./components/vtt/InitiativeTrackerBar").then((module) => ({ default: module.InitiativeTrackerBar })));
 
 const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; icon: string }> = {
   "Dungeons & Dragons (D&D)": { short: "D&D 5e", subtitle: "D20 • Fantasia Medieval", icon: "⚔️" },
@@ -1086,6 +1086,7 @@ export default function App() {
               <div className="px-4 py-2 bg-[#171510] border-b border-[#2B2820] flex items-center gap-2 max-w-3xl mx-auto w-full">
                 <input
                   type="text"
+                  aria-label="Filtrar histórico de mensagens"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filtrar histórico..."
@@ -1189,6 +1190,7 @@ export default function App() {
                   <input
                     ref={inputRef}
                     type="text"
+                    aria-label={`Perguntar sobre regras de ${SYSTEM_SHORT_LABELS[activeSystem]?.short || activeSystem}`}
                     placeholder={`Pergunte ao Mestre Arcano sobre regras de ${SYSTEM_SHORT_LABELS[activeSystem]?.short || activeSystem}...`}
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
@@ -1224,6 +1226,7 @@ export default function App() {
                 </span>
               </div>
               {/* Initiative Turn Bar */}
+              <React.Suspense fallback={<div role="status" className="p-3 text-center text-xs text-[#DFB56C]">Carregando iniciativa…</div>}>
               <InitiativeTrackerBar
                 combatants={initiativeState.combatants}
                 currentTurnIndex={initiativeState.currentTurnIndex}
@@ -1273,8 +1276,10 @@ export default function App() {
                 }}
                 isGm={isCurrentGm}
               />
+              </React.Suspense>
 
               {/* Canvas */}
+              <React.Suspense fallback={<div role="status" className="flex flex-1 items-center justify-center text-sm text-[#DFB56C]">Preparando mapa tático…</div>}>
               <BattlemapCanvas
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
@@ -1286,11 +1291,13 @@ export default function App() {
                 isChatOpen={isVttChatOpen}
                 onToggleChat={() => setIsVttChatOpen((prev) => !prev)}
               />
+              </React.Suspense>
             </div>
 
             {/* Right: Local Dual Chat (IC/OOC) & Macro Roller - Collapsible / Abbreviated */}
             {isVttChatOpen && (
               <div className="w-full md:w-96 border-t md:border-t-0 md:border-l border-[#38352A] h-80 md:h-full shrink-0 flex flex-col animate-in fade-in slide-in-from-right-2 duration-200">
+                <React.Suspense fallback={<div role="status" className="p-4 text-center text-xs text-[#DFB56C]">Carregando chat da campanha…</div>}>
                 <CampaignDualChat
                   messages={campaignMessages}
                   onSendMessage={(newMsg) => {
@@ -1319,6 +1326,7 @@ export default function App() {
                   onViewHdImage={(url, title) => setLightboxImage({ url, title })}
                   onToggleCollapse={() => setIsVttChatOpen(false)}
                 />
+                </React.Suspense>
               </div>
             )}
           </div>
