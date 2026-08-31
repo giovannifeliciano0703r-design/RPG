@@ -38,6 +38,8 @@ O workflow em `.github/workflows/ci.yml` executa as mesmas verificações em tod
 
 Copie `.env.example` para `.env.local`. A URL e a chave **publicável** do Supabase podem ser usadas no navegador; nunca exponha uma chave `secret`/`service_role` em variáveis `VITE_*`.
 
+O deploy oficial usa `.env.production` somente para esses dois identificadores públicos. Segredos do servidor continuam configurados exclusivamente no provedor de hospedagem e nunca devem ser commitados.
+
 | Variável | Finalidade |
 | --- | --- |
 | `GEMINI_API_KEY` | Chave da API Gemini, usada exclusivamente pelo servidor |
