@@ -91,6 +91,8 @@ import { STORAGE_KEYS } from "./constants/storageKeys";
 import { persistSafely } from "./utils/storageGuard";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { toUserProfile } from "./auth/supabaseAuth";
+import { useLiveCampaign } from "./hooks/useLiveCampaign";
+import { uploadCampaignMedia } from "./services/supabaseMedia";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -329,6 +331,22 @@ export default function App() {
     return DEFAULT_INITIATIVE_STATE;
   });
   const [isVttChatOpen, setIsVttChatOpen] = useState(false);
+
+  const handleSynchronizedCampaign = useCallback((updated: Campaign) => {
+    setActiveCampaign(updated);
+    setCampaigns((previous) => previous.map((item) => item.id === updated.id ? updated : item));
+  }, []);
+
+  const liveCampaign = useLiveCampaign({
+    campaign: activeCampaign,
+    user: currentUser,
+    battlemap: battleMapData,
+    initiative: initiativeState,
+    setCampaign: handleSynchronizedCampaign,
+    setMessages: setCampaignMessages,
+    setBattlemap: setBattleMapData,
+    setInitiative: setInitiativeState,
+  });
 
   // Chat UI controls
   const [inputText, setInputText] = useState("");
@@ -1338,6 +1356,12 @@ export default function App() {
           <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Interactive Battlemap with Initiative Bar */}
             <div className="flex-1 flex flex-col h-full overflow-hidden">
+              <div className="flex items-center justify-end gap-2 border-b border-[#38352A] bg-[#15140F] px-3 py-1 text-[10px] font-mono" role="status">
+                <span className={`h-2 w-2 rounded-full ${liveCampaign.status === "online" ? "bg-[#8DAE8F]" : liveCampaign.status === "error" ? "bg-[#C4645A]" : "bg-[#A79C82]"}`} />
+                <span className="text-[#A79C82]">
+                  {liveCampaign.status === "online" ? "Campanha sincronizada" : liveCampaign.status === "connecting" ? "Conectando campanha…" : liveCampaign.status === "error" ? "Modo local — falha ao sincronizar" : "Campanha local"}
+                </span>
+              </div>
               {/* Initiative Turn Bar */}
               <InitiativeTrackerBar
                 combatants={initiativeState.combatants}
@@ -1417,7 +1441,13 @@ export default function App() {
                       timestamp: Date.now(),
                       ...newMsg,
                     };
-                    setCampaignMessages((prev) => [...prev, fullMsg]);
+                    if (!activeCampaign?.remoteId) {
+                      setCampaignMessages((prev) => [...prev, fullMsg]);
+                      return;
+                    }
+                    void liveCampaign.sendMessage(newMsg).then((sent) => {
+                      if (!sent) setCampaignMessages((prev) => [...prev, fullMsg]);
+                    });
                   }}
                   currentUser={currentUser}
                   characters={characters}
@@ -1499,6 +1529,7 @@ export default function App() {
         assets={mediaAssets}
         onSaveAssets={saveMediaAssets}
         userId={currentUser.id}
+        onUploadFile={activeCampaign?.remoteId ? (file, album) => uploadCampaignMedia(file, activeCampaign.remoteId, album) : undefined}
         onViewHdImage={(url, title) => setLightboxImage({ url, title })}
         />
       )}

@@ -23,6 +23,7 @@ interface MediaLibraryModalProps {
   userId: string;
   onSelectImage?: (url: string) => void;
   onViewHdImage?: (url: string, name: string) => void;
+  onUploadFile?: (file: File, album: MediaAlbumType) => Promise<MediaAsset>;
 }
 
 const MEDIA_ALBUMS: MediaAlbumType[] = ["Tokens", "Retratos", "Mapas & Cenários", "Handouts", "Geral"];
@@ -35,6 +36,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   userId,
   onSelectImage,
   onViewHdImage,
+  onUploadFile,
 }) => {
   const [activeAlbum, setActiveAlbum] = useState<MediaAlbumType | "all">("all");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -69,12 +71,15 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
         const file = files[i];
         if (!file.type.startsWith("image/")) continue;
 
-        const processed = await processImageFile(file);
-
         let targetAlbum: MediaAlbumType = "Geral";
-        if (activeAlbum !== "all") {
-          targetAlbum = activeAlbum;
+        if (activeAlbum !== "all") targetAlbum = activeAlbum;
+
+        if (onUploadFile) {
+          newAssets.push(await onUploadFile(file, targetAlbum));
+          continue;
         }
+
+        const processed = await processImageFile(file);
 
         const asset: MediaAsset = {
           id: `media-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
