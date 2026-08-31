@@ -9,21 +9,16 @@ import {
   Crown,
   Sword,
   Wand2,
-  BookOpen,
   ArrowRight,
   Eye,
   EyeOff,
-  Dice5,
   Flame,
   Moon,
   Skull,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { RpgSystem, UserProfile, UserRole } from "../types";
-import { RPG_SYSTEMS } from "../domain/rpgSystems";
-import { STORAGE_KEYS } from "../constants/storageKeys";
-import { persistSafely } from "../utils/storageGuard";
+import { UserProfile } from "../types";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { toUserProfile } from "../auth/supabaseAuth";
 
@@ -44,13 +39,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<UserRole>("Mestre da Mesa");
-  const [favoriteSystem, setFavoriteSystem] = useState<RpgSystem>("Dungeons & Dragons (D&D)");
   const [selectedAvatar, setSelectedAvatar] = useState("wizard");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const triggerHaptic = (ms: number = 25) => {
@@ -66,47 +60,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (!email.trim()) {
-      setErrorMessage("Informe o e-mail do perfil local ou da conta administrativa.");
+      setErrorMessage("Informe o e-mail da sua conta.");
       return;
     }
 
     setIsLoading(true);
     triggerHaptic(40);
     try {
-      if (isSupabaseConfigured && supabase) {
-        if (!password) throw new Error("Informe sua senha para entrar.");
-        const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-        if (error || !data.user) throw new Error(error?.message || "Não foi possível entrar.");
-        onLogin(await toUserProfile(data.user), rememberMe);
-        return;
-      }
-
-      if (password) {
-        const response = await fetch("/api/auth/login", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim(), password, remember: rememberMe }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || !payload.user) {
-          throw new Error(payload.error || "Não foi possível validar a conta administrativa.");
-        }
-        onLogin(payload.user as UserProfile, rememberMe);
-        return;
-      }
-
-      const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.registeredUsers);
-      const registeredUsers: UserProfile[] = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-      const foundUser = Array.isArray(registeredUsers)
-        ? registeredUsers.find((user) => user.email.toLowerCase() === email.trim().toLowerCase())
-        : undefined;
-      if (!foundUser) {
-        throw new Error("Perfil local não encontrado. Crie uma ficha local ou entre como convidado.");
-      }
-      onLogin({ ...foundUser, role: foundUser.role === "Administrador (ADM)" ? "Mestre da Mesa" : foundUser.role, isAdmin: false, authorization: undefined }, rememberMe);
+      if (!isSupabaseConfigured || !supabase) throw new Error("O cadastro online ainda não foi configurado.");
+      if (!password) throw new Error("Informe sua senha para entrar.");
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error || !data.user) throw new Error(error?.message || "E-mail ou senha inválidos.");
+      onLogin(await toUserProfile(data.user), true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao entrar.");
     } finally {
@@ -118,6 +86,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (!name.trim()) {
       setErrorMessage("Informe o nome do seu Aventureiro ou Mestre.");
@@ -127,103 +96,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setErrorMessage("Informe um endereço de e-mail válido.");
       return;
     }
+    if (password.length < 8) {
+      setErrorMessage("Crie uma senha com pelo menos 8 caracteres.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMessage("As senhas não coincidem.");
+      return;
+    }
     setIsLoading(true);
     triggerHaptic(50);
 
-    if (isSupabaseConfigured && supabase) {
-      try {
-        if (password.length < 8) throw new Error("Use uma senha com pelo menos 8 caracteres.");
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { data: { display_name: name.trim(), avatar: selectedAvatar, favorite_system: favoriteSystem } },
-        });
-        if (error) throw error;
-        if (!data.user) throw new Error("Não foi possível criar a conta.");
-        if (!data.session) {
-          setErrorMessage("Conta criada. Confirme o e-mail recebido antes de entrar.");
-          setTab("login");
-          return;
-        }
-        onLogin(await toUserProfile(data.user), true);
-      } catch (error) {
-        setErrorMessage(error instanceof Error ? error.message : "Não foi possível criar a conta.");
-      } finally {
-        setIsLoading(false);
-        setPassword("");
-      }
-      return;
-    }
-
-    setTimeout(() => {
-      const safeRole: UserRole = role === "Administrador (ADM)" ? "Mestre da Mesa" : role;
-
-      const newUser: UserProfile = {
-        id: "usr_" + Date.now(),
-        name: name.trim(),
+    try {
+      if (!isSupabaseConfigured || !supabase) throw new Error("O cadastro online ainda não foi configurado.");
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
-        role: safeRole,
-        isAdmin: false,
-        avatar: selectedAvatar,
-        favoriteSystem,
-        createdAt: Date.now(),
-      };
-
-      // Save to registered list
-      try {
-        const storedUsersRaw = localStorage.getItem(STORAGE_KEYS.registeredUsers);
-        const registeredUsers = storedUsersRaw ? JSON.parse(storedUsersRaw) : [];
-        const withoutDuplicate = Array.isArray(registeredUsers)
-          ? registeredUsers.filter((user: UserProfile) => user.email.toLowerCase() !== newUser.email.toLowerCase())
-          : [];
-        withoutDuplicate.push(newUser);
-        if (!persistSafely(STORAGE_KEYS.registeredUsers, withoutDuplicate)) {
-          throw new Error("O armazenamento local está cheio. Exporte um backup ou libere espaço antes de criar o perfil.");
-        }
-      } catch (err) {
-        setIsLoading(false);
-        setErrorMessage(err instanceof Error ? err.message : "Não foi possível salvar o perfil local.");
+        password,
+        options: { data: { display_name: name.trim(), avatar: selectedAvatar } },
+      });
+      if (error) throw error;
+      if (!data.user) throw new Error("Não foi possível criar a conta.");
+      if (!data.session) {
+        setSuccessMessage("Conta criada! Confirme o e-mail recebido e depois entre com sua senha.");
+        setTab("login");
         return;
       }
-
+      onLogin(await toUserProfile(data.user), true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Não foi possível criar a conta.");
+    } finally {
       setIsLoading(false);
-      onLogin(newUser, true);
-    }, 450);
-  };
-
-  const handleGuestLogin = () => {
-    triggerHaptic(30);
-    setIsLoading(true);
-    setTimeout(() => {
-      const guestUser: UserProfile = {
-        id: "guest_" + Math.random().toString(36).substring(2, 8),
-        name: "Aventureiro Errante",
-        email: "convidado@mestrearcano.rpg",
-        role: "Jogador Explorador",
-        avatar: "rogue",
-        favoriteSystem: "Dungeons & Dragons (D&D)",
-        createdAt: Date.now(),
-        isGuest: true,
-        isAdmin: false,
-      };
-      setIsLoading(false);
-      onLogin(guestUser, false);
-    }, 250);
-  };
-
-  const handleQuickDemo = (demoType: "master" | "player") => {
-    triggerHaptic(30);
-    const isMaster = demoType === "master";
-    onLogin({
-      id: isMaster ? "demo-master" : "demo-player",
-      name: isMaster ? "Mestre de Demonstração" : "Jogador de Demonstração",
-      email: isMaster ? "mestre@demo.local" : "jogador@demo.local",
-      role: isMaster ? "Mestre da Mesa" : "Jogador Explorador",
-      avatar: isMaster ? "master" : "warrior",
-      favoriteSystem: "Dungeons & Dragons (D&D)",
-      createdAt: Date.now(),
-      isAdmin: false,
-    }, false);
+      setPassword("");
+      setConfirmPassword("");
+    }
   };
 
   return (
@@ -241,22 +146,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           </div>
           <div>
             <h1 className="font-serif font-bold text-base text-[#EFE8D8] tracking-wide">Mestre Arcano</h1>
-            <p className="text-[10px] font-mono text-[#A79C82]">Oráculo Enciclopédico de RPG</p>
+            <p className="text-[10px] font-mono text-[#A79C82]">Plataforma de RPG de mesa</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline text-[11px] font-mono text-[#8DAE8F] bg-[#4B6B4E]/15 border border-[#4B6B4E]/40 px-2 py-0.5 rounded">
-            Códice v2.5 Online
-          </span>
-          <button
-            onClick={handleGuestLogin}
-            className="text-xs font-mono text-[#DFB56C] hover:text-white bg-[#B08635]/15 hover:bg-[#B08635]/30 border border-[#B08635]/40 px-2.5 py-1.5 rounded-lg transition-colors active:scale-95 flex items-center gap-1"
-          >
-            <span>Convidado</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <span className="hidden sm:inline text-[11px] font-mono text-[#8DAE8F] bg-[#4B6B4E]/15 border border-[#4B6B4E]/40 px-2 py-0.5 rounded">
+          Contas protegidas pelo Supabase
+        </span>
       </header>
 
       {/* Center Authentication Card */}
@@ -271,12 +167,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
             </div>
 
             <h2 className="font-serif font-bold text-xl sm:text-2xl text-[#EFE8D8]">
-              {tab === "login" ? "Adentrar o Códice" : "Criar Ficha de Conjurador"}
+              {tab === "login" ? "Entrar no Mestre Arcano" : "Criar sua conta"}
             </h2>
             <p className="text-xs text-[#A79C82] font-mono mt-1">
               {tab === "login"
-                ? "Identifique-se para consultar regras, salvar grimórios e homebrews"
-                : "Cadastre seu perfil de Mestre ou Jogador para personalizar sua jornada"}
+                ? "Entre com uma conta cadastrada para acessar suas campanhas"
+                : "Cadastre seu perfil de Mestre ou Jogador para começar"}
             </p>
 
             {/* Mode Switch Tabs */}
@@ -287,6 +183,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   triggerHaptic(15);
                   setTab("login");
                   setErrorMessage("");
+                  setSuccessMessage("");
                 }}
                 className={`py-2 text-xs font-mono font-bold rounded-lg transition-all active:scale-95 ${
                   tab === "login"
@@ -302,6 +199,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   triggerHaptic(15);
                   setTab("register");
                   setErrorMessage("");
+                  setSuccessMessage("");
                 }}
                 className={`py-2 text-xs font-mono font-bold rounded-lg transition-all active:scale-95 ${
                   tab === "register"
@@ -318,9 +216,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <div className="p-4 sm:p-6 space-y-4">
             {/* Error Message Alert */}
             {errorMessage && (
-              <div className="p-3 bg-[#7A2E27]/25 border border-[#C4645A] text-[#F3E8E4] rounded-xl text-xs flex items-start gap-2 animate-fade-in">
+              <div role="alert" aria-live="assertive" className="p-3 bg-[#7A2E27]/25 border border-[#C4645A] text-[#F3E8E4] rounded-xl text-xs flex items-start gap-2 animate-fade-in">
                 <AlertCircle className="w-4 h-4 text-[#C4645A] shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+            {successMessage && (
+              <div role="status" aria-live="polite" className="p-3 bg-[#4B6B4E]/20 border border-[#8DAE8F] text-[#DDEBDD] rounded-xl text-xs flex items-start gap-2 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-[#8DAE8F] shrink-0 mt-0.5" />
+                <span>{successMessage}</span>
               </div>
             )}
 
@@ -328,13 +232,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               /* ================= LOGIN FORM ================= */
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                  <label htmlFor="login-email" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
                     E-mail do Aventureiro
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="login-email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -345,38 +252,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-mono uppercase tracking-wider text-[#A79C82]">
-                      Senha administrativa (opcional)
-                    </label>
-                    <div className="flex items-center gap-2 text-[10px] font-mono">
-                      <span className="text-[#8A8270]">Acesso rápido:</span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDemo("master")}
-                        className="text-[#8DAE8F] hover:underline"
-                        title="Preencher com Mestre da Mesa"
-                      >
-                        Mestre
-                      </button>
-                      <span className="text-[#38352A]">•</span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDemo("player")}
-                        className="text-[#8DAE8F] hover:underline"
-                        title="Entrar como jogador de demonstração"
-                      >
-                        Jogador
-                      </button>
-                    </div>
-                  </div>
+                  <label htmlFor="login-password" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                    Senha
+                  </label>
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="login-password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Somente para ADM do servidor"
+                      placeholder="Digite sua senha"
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-10 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors font-mono"
                     />
                     <button
@@ -391,21 +280,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs font-mono pt-1">
-                  <label className="flex items-center gap-2 cursor-pointer text-[#A79C82] hover:text-[#EFE8D8]">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-[#38352A] bg-[#15140F] text-[#7A2E27] accent-[#7A2E27]"
-                    />
-                    <span>Manter perfil neste navegador</span>
-                  </label>
-
-                  <span className="text-[#8A8270] text-[10px] text-right">
-                    Perfis locais entram sem senha; ADM é validado pelo servidor.
-                  </span>
-                </div>
+                <p className="text-[#8A8270] text-[10px] font-mono pt-1">
+                  O acesso exige uma conta confirmada e autenticada pelo Supabase.
+                </p>
 
                 <button
                   type="submit"
@@ -426,30 +303,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               /* ================= REGISTER FORM ================= */
               <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
-                    Nome do Personagem / Mestre
+                  <label htmlFor="register-name" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                    Nome de exibição
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="register-name"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="Ex: Gandalf, Mestre Elminster, Vax'ildan"
+                      placeholder="Como você quer ser chamado"
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-3 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
-                    E-mail do Jogador
+                  <label htmlFor="register-email" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                    E-mail
                   </label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <input
+                      id="register-email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -460,37 +343,58 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 </div>
 
                 <div>
-                    <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
-                      Papel na Mesa
-                    </label>
-                    <select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value as UserRole)}
-                      className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
+                  <label htmlFor="register-password" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                    Senha
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-4 h-4 text-[#A79C82] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="register-password"
+                      name="new-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      required
+                      minLength={8}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      aria-describedby="password-help"
+                      placeholder="Mínimo de 8 caracteres"
+                      className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-10 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      title={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                      className="p-1.5 text-[#A79C82] hover:text-[#EFE8D8] absolute right-2.5 top-1/2 -translate-y-1/2"
                     >
-                      <option value="Mestre da Mesa">Mestre da Mesa (DM/GM)</option>
-                      <option value="Jogador Explorador">Jogador Explorador</option>
-                      <option value="Criador de Conteúdo">Criador de Homebrews</option>
-                      <option value="Guardião do Saber">Guardião do Saber</option>
-                    </select>
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p id="password-help" className={`mt-1.5 text-[10px] font-mono ${password.length >= 8 ? "text-[#8DAE8F]" : "text-[#A79C82]"}`}>
+                    {password.length >= 8 ? "✓ Senha com tamanho mínimo" : "Use pelo menos 8 caracteres"}
+                  </p>
                 </div>
 
-                {/* Favorite System */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
-                    Sistema Principal de Preferência
+                  <label htmlFor="register-password-confirm" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+                    Confirmar senha
                   </label>
-                  <select
-                    value={favoriteSystem}
-                    onChange={(e) => setFavoriteSystem(e.target.value as RpgSystem)}
-                    className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
-                  >
-                    {RPG_SYSTEMS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    id="register-password-confirm"
+                    name="new-password-confirmation"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    aria-invalid={confirmPassword.length > 0 && confirmPassword !== password}
+                    placeholder="Repita a senha"
+                    className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] aria-invalid:border-[#C4645A] transition-colors font-mono"
+                  />
+                  {confirmPassword.length > 0 && confirmPassword !== password ? (
+                    <p className="mt-1.5 text-[10px] font-mono text-[#C4645A]">As senhas precisam ser iguais.</p>
+                  ) : null}
                 </div>
 
                 {/* Avatar Selection */}
@@ -507,6 +411,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                           key={av.id}
                           type="button"
                           title={av.label}
+                          aria-label={`Escolher avatar ${av.label}`}
+                          aria-pressed={isSel}
                           onClick={() => {
                             triggerHaptic(15);
                             setSelectedAvatar(av.id);
@@ -526,14 +432,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || password.length < 8 || password !== confirmPassword}
                   className="w-full min-h-[48px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-serif font-bold text-base rounded-xl shadow-lg shadow-[#7A2E27]/30 flex items-center justify-center gap-2 transition-all cursor-pointer mt-3 disabled:opacity-50"
                 >
                   {isLoading ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Consagrar Nova Ficha</span>
+                      <span>Criar conta</span>
                       <Sparkles className="w-4 h-4" />
                     </>
                   )}
@@ -541,41 +447,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </form>
             )}
 
-            {/* Guest / Fast Access Section */}
-            <div className="pt-3 border-t border-[#38352A] space-y-2 text-center">
-              <div className="text-[10px] font-mono text-[#A79C82] uppercase tracking-wider">
-                Acesso Rápido para Testes:
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemo("master")}
-                  className="py-2 px-2 bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] hover:border-[#8DAE8F] text-[#EFE8D8] text-xs font-mono rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group"
-                  title="Entrar como Mestre da Mesa"
-                >
-                  <Wand2 className="w-3.5 h-3.5 text-[#8DAE8F] group-hover:scale-110 transition-transform" />
-                  <span>Mestre</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleGuestLogin}
-                  className="py-2 px-2 bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] hover:border-[#C4645A] text-[#EFE8D8] text-xs font-mono rounded-xl transition-all active:scale-95 flex flex-col items-center justify-center gap-1 group"
-                  title="Acessar modo convidado"
-                >
-                  <Dice5 className="w-3.5 h-3.5 text-[#C4645A] group-hover:scale-110 transition-transform" />
-                  <span>Convidado</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-3 text-[11px] font-mono text-[#A79C82] border-t border-[#38352A] bg-[#15140F]/80">
-        Mestre Arcano • Códice Enciclopédico de D&D, Pathfinder, Tormenta20, Vampiro e GURPS
+        Mestre Arcano • Fichas, campanhas, bestiário e mesa virtual para RPG
       </footer>
     </div>
   );

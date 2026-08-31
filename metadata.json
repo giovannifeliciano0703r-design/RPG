@@ -1,6 +1,6 @@
 {
   "name": "Mestre Arcano",
-  "description": "Hub principal, criador de fichas de personagens de alta fidelidade, Mesa Virtual VTT e Códice de Regras com IA para RPGs de mesa.",
+  "description": "Hub principal, fichas de personagens, campanhas, bestiário e Mesa Virtual VTT para RPGs de mesa.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

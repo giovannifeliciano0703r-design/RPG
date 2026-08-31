@@ -2,42 +2,11 @@ import type { RpgSystem } from "./domain/rpgSystems";
 
 export type { RpgSystem } from "./domain/rpgSystems";
 
-export type ConfidenceLevel = "Alta" | "Média" | "Baixa";
-
-export interface CardField {
-  label: string;
-  value: string;
-  items: string[];
-}
-
-export interface ParsedRpgCard {
-  id: string;
-  name: string;
-  systemEd: string;
-  category: string;
-  description: string;
-  attributes?: string;
-  abilities: string[];
-  advantages: string[];
-  disadvantages: string[];
-  buffsDebuffs?: string;
-  source: string;
-  confidence: ConfidenceLevel;
-  extraFields: CardField[];
-  rawText: string;
-}
-
-export type ParsedBlock =
-  | { type: "card"; card: ParsedRpgCard }
-  | { type: "prose"; content: string }
-  | { type: "table"; content: string };
-
 export type ChatChannel = "IC" | "OOC" | "in_character" | "ooc";
 export type ChatChannelType = "IC" | "OOC";
 
 export interface ChatMessage {
   id: string;
-  role?: "user" | "assistant";
   senderId?: string;
   senderName?: string;
   senderAvatar?: string;
@@ -45,12 +14,6 @@ export interface ChatMessage {
   channel?: ChatChannel;
   content: string;
   timestamp: number;
-  activeSystem?: RpgSystem;
-  blocks?: ParsedBlock[];
-  isError?: boolean;
-  isFallback?: boolean;
-  confidence?: "high" | "medium" | "low";
-  sources?: Array<{ id: string; title: string; system: string; category: string }>;
   type?: "TEXT" | "ROLL" | "IMAGE" | "SYSTEM";
   rollData?: {
     formula: string;
@@ -79,27 +42,6 @@ export interface DiceRollResult {
   timestamp: number;
 }
 
-export type KnowledgeCategory =
-  | "Regra da Casa"
-  | "Magia / Feitiço"
-  | "Item Mágico"
-  | "Classe / Subclasse"
-  | "Monstro / NPC"
-  | "Lore / Cenário"
-  | "Mecânica Geral";
-
-export interface KnowledgeEntry {
-  id: string;
-  title: string;
-  system: string;
-  category: KnowledgeCategory;
-  keywords: string[];
-  content: string;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
 export type UserRole =
   | "Administrador (ADM)"
   | "Mestre da Mesa"
@@ -115,21 +57,11 @@ export interface UserProfile {
   avatar: string;
   favoriteSystem: RpgSystem;
   createdAt: number;
-  isGuest?: boolean;
   isAdmin?: boolean;
-  authorization?: {
-    source: "server";
-    permissions: readonly ["knowledge:manage"];
-  };
 }
 
 export const isUserAdmin = (user: UserProfile | null | undefined): boolean => {
-  return Boolean(
-    user &&
-      !user.isGuest &&
-      user.authorization?.source === "server" &&
-      user.authorization.permissions.includes("knowledge:manage"),
-  );
+  return user?.isAdmin === true;
 };
 
 // ==========================================

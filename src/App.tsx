@@ -1,23 +1,10 @@
-import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import React, { useCallback, useState, useMemo } from "react";
 import {
-  BookMarked,
   Dices,
-  Send,
-  Sparkles,
-  Trash2,
-  ScrollText,
   AlertCircle,
-  HelpCircle,
-  Check,
-  ShieldCheck,
+  ScrollText,
   Flame,
-  Search,
-  Database,
-  Tag,
   ChevronDown,
-  MessageSquare,
   X,
   LogOut,
   User,
@@ -27,8 +14,6 @@ import {
   Shield,
   Moon,
   Skull,
-  FileText,
-  Printer,
   Users,
   Map as MapIcon,
   Zap,
@@ -39,15 +24,11 @@ import {
   Settings,
   Compass,
   PanelLeftClose,
-  PanelLeftOpen,
   Menu,
 } from "lucide-react";
 import {
   RpgSystem,
   ChatMessage,
-  ParsedRpgCard,
-  ParsedBlock,
-  KnowledgeEntry,
   UserProfile,
   isUserAdmin,
   CharacterSheet,
@@ -58,10 +39,7 @@ import {
   NpcEntry,
   Campaign,
 } from "./types";
-import { parseResponseBlocks } from "./utils/cardParser";
-import { RpgCard } from "./components/RpgCard";
 import { LoginScreen } from "./components/LoginScreen";
-import { DEFAULT_KNOWLEDGE_ENTRIES } from "./data/defaultKnowledge";
 import { DEFAULT_MONSTERS } from "./data/defaultMonsters";
 import {
   URICH_CHARACTER,
@@ -75,17 +53,15 @@ import { executeMacro } from "./utils/macroEngine";
 import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
 import { HubView } from "./components/hub/HubView";
 import { normalizeRpgSystem } from "./domain/rpgSystems";
-import { sanitizeLocalProfile } from "./utils/securityMigration";
 import { useAppPersistence } from "./hooks/useAppPersistence";
 import { useMediaAssets } from "./hooks/useMediaAssets";
 import { ConfirmDialog } from "./components/ui/Dialog";
 import { STORAGE_KEYS } from "./constants/storageKeys";
-import { persistSafely } from "./utils/storageGuard";
 import { useLiveCampaign } from "./hooks/useLiveCampaign";
 import { uploadCampaignMedia } from "./services/supabaseMedia";
 import { useCampaignWorkspace } from "./hooks/useCampaignWorkspace";
 import { useAppAuth } from "./hooks/useAppAuth";
-import { useCodexWorkspace } from "./hooks/useCodexWorkspace";
+import { supabase } from "./lib/supabase";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -95,8 +71,6 @@ const ImageLightboxModal = React.lazy(() => import("./components/media/ImageLigh
 const NpcFoldersModal = React.lazy(() => import("./components/npc/NpcFoldersModal").then((module) => ({ default: module.NpcFoldersModal })));
 const CampaignManagerModal = React.lazy(() => import("./components/campaign/CampaignManagerModal").then((module) => ({ default: module.CampaignManagerModal })));
 const DiceRoller = React.lazy(() => import("./components/DiceRoller").then((module) => ({ default: module.DiceRoller })));
-const KnowledgeBaseModal = React.lazy(() => import("./components/KnowledgeBaseModal").then((module) => ({ default: module.KnowledgeBaseModal })));
-const GrimoireDrawer = React.lazy(() => import("./components/GrimoireDrawer").then((module) => ({ default: module.GrimoireDrawer })));
 const UserProfileModal = React.lazy(() => import("./components/UserProfileModal").then((module) => ({ default: module.UserProfileModal })));
 const CampaignDualChat = React.lazy(() => import("./components/campaign/CampaignDualChat").then((module) => ({ default: module.CampaignDualChat })));
 const BattlemapCanvas = React.lazy(() => import("./components/vtt/BattlemapCanvas").then((module) => ({ default: module.BattlemapCanvas })));
@@ -116,27 +90,11 @@ const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; 
   "Outro / não especificar": { short: "Outro / Homebrew", subtitle: "Regras Livres", icon: "✨" },
 };
 
-const INITIAL_WELCOME = `Saudações, aventureiro! Sou o **Mestre Arcano**, seu códice vivo, VTT e oráculo de regras para RPGs de mesa. 
-
-Consulte qualquer mecânica, gere fichas inteligentes, navegue pelo Bestiário, execute macros de combate, use o mapa tático interativo com névoa de guerra ou gerencie campanhas locais!
-
-**Recursos disponíveis na barra de ferramentas:**
-- 📜 **Ficha Inteligente**: Cálculo automático de bônus, magias, perícias e bônus temporários.
-- 💀 **Bestiário de Monstros**: Blocos de estatísticas com rolagem direta de ataque e spawn no mapa.
-- ⚡ **Macros de Rolagem**: Fórmulas com variáveis automáticas da ficha (@{strMod}, @{profBonus}).
-- 🗺️ **Mesa Virtual & Battlemap**: Grade interativa, medição de alcance, névoa e tokens com barra de vida.
-- 👑 **Campanhas locais**: Papéis de GM/Co-GM com permissões granulares e Chat IC/OOC no navegador atual.`;
-
 export default function App() {
-  // Current view mode: 'hub' (Dashboard Hub) | 'codex' (AI Rules Chat) | 'vtt' (Virtual Tabletop Battlemap + Dual Chat)
-  const [activeView, setActiveView] = useState<"hub" | "codex" | "vtt">("hub");
-
-  const {
-    activeSystem, setActiveSystem,
-    messages, setMessages,
-    savedCards, setSavedCards,
-    customKnowledge, setCustomKnowledge,
-  } = useCodexWorkspace(INITIAL_WELCOME);
+  const [activeView, setActiveView] = useState<"hub" | "vtt">("hub");
+  const [activeSystem, setActiveSystem] = useState<RpgSystem>(() =>
+    normalizeRpgSystem(localStorage.getItem(STORAGE_KEYS.system)),
+  );
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -224,16 +182,9 @@ export default function App() {
     setCampaigns((previous) => previous.map((item) => item.id === updated.id ? updated : item));
   }, [setActiveCampaign, setCampaigns]);
 
-  // Chat UI controls
-  const [inputText, setInputText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isDiceOpen, setIsDiceOpen] = useState(false);
-  const [isGrimoireOpen, setIsGrimoireOpen] = useState(false);
-  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState(false);
   const [isMobileSystemOpen, setIsMobileSystemOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     title: string;
@@ -242,15 +193,11 @@ export default function App() {
     onConfirm: () => void;
   } | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const handleStorageError = useCallback((key: string) => {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
   }, []);
 
   const { currentUser, setCurrentUser, isAuthChecking, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
-    onStorageError: handleStorageError,
     onPreferredSystem: setActiveSystem,
   });
 
@@ -268,9 +215,6 @@ export default function App() {
   useAppPersistence(
     {
       activeSystem,
-      messages,
-      savedCards,
-      customKnowledge,
       characters,
       monsters,
       macros,
@@ -284,210 +228,13 @@ export default function App() {
     handleStorageError,
   );
 
-  const matchingMessages = useMemo(
-    () =>
-      searchQuery
-        ? messages.filter((message) => message.content.toLowerCase().includes(searchQuery.toLowerCase()))
-        : messages,
-    [messages, searchQuery],
-  );
-  const hiddenMessageCount = Math.max(0, matchingMessages.length - 250);
-  const displayedMessages = useMemo(() => matchingMessages.slice(-250), [matchingMessages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
-
-  const handleToggleBookmark = (card: ParsedRpgCard) => {
-    setSavedCards((prev) => {
-      const exists = prev.some((c) => c.name.toLowerCase() === card.name.toLowerCase() && c.systemEd === card.systemEd);
-      if (exists) {
-        return prev.filter((c) => !(c.name.toLowerCase() === card.name.toLowerCase() && c.systemEd === card.systemEd));
-      } else {
-        return [card, ...prev];
-      }
-    });
-  };
-
-  const isCardBookmarked = (card: ParsedRpgCard) => {
-    return savedCards.some((c) => c.name.toLowerCase() === card.name.toLowerCase() && c.systemEd === card.systemEd);
-  };
-
-  // Custom Knowledge Handlers
-  const handleSaveKnowledgeEntry = (entryToSave: KnowledgeEntry) => {
-    setCustomKnowledge((prev) => {
-      const exists = prev.some((e) => e.id === entryToSave.id);
-      if (exists) return prev.map((e) => (e.id === entryToSave.id ? entryToSave : e));
-      return [entryToSave, ...prev];
-    });
-  };
-
-  const handleDeleteKnowledgeEntry = (id: string) => {
-    setCustomKnowledge((prev) => prev.filter((e) => e.id !== id));
-  };
-
-  const handleToggleKnowledgeEntry = (id: string) => {
-    setCustomKnowledge((prev) => prev.map((e) => (e.id === id ? { ...e, isActive: !e.isActive } : e)));
-  };
-
-  const handleResetKnowledgeDefaults = () => setCustomKnowledge(DEFAULT_KNOWLEDGE_ENTRIES);
-
-  const handleExportKnowledgeJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(customKnowledge, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `mestre_arcano_regras_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-  };
-
-  const handleImportKnowledgeJSON = (jsonString: string): boolean => {
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        const sanitized: KnowledgeEntry[] = parsed.map((item, idx) => ({
-          id: item.id || `imported-${Date.now()}-${idx}`,
-          title: String(item.title || "Regra Importada"),
-          system: String(item.system || "Universal / Todos"),
-          category: item.category || "Regra da Casa",
-          keywords: Array.isArray(item.keywords) ? item.keywords.map(String) : [String(item.title || "")],
-          content: String(item.content || ""),
-          isActive: item.isActive !== false,
-          createdAt: Number(item.createdAt) || Date.now(),
-          updatedAt: Number(item.updatedAt) || Date.now(),
-        }));
-        setCustomKnowledge(sanitized);
-        return true;
-      }
-    } catch (e) {
-      console.error("Erro ao importar JSON:", e);
-    }
-    return false;
-  };
-
-  // AI Chat Request Handler
-  const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || inputText).trim();
-    if (!query || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: query,
-      timestamp: Date.now(),
-      activeSystem,
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText("");
-    setIsLoading(true);
-
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
-
-    try {
-      const historyPayload = messages
-        .filter((m) => !m.isError)
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: query,
-          history: historyPayload,
-          activeSystem,
-          customKnowledge: customKnowledge.filter((e) => e.isActive),
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Erro HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      const responseContent = data.text || "Nenhuma informação retornada pelos arquivos.";
-      const blocks = parseResponseBlocks(responseContent);
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: responseContent,
-        timestamp: Date.now(),
-        activeSystem,
-        blocks,
-        isFallback: data.isFallback === true,
-        confidence: data.confidence === "high" || data.confidence === "medium" ? data.confidence : "low",
-        sources: Array.isArray(data.sources) ? data.sources.slice(0, 6) : [],
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (err: any) {
-      clearTimeout(timeoutId);
-      console.error("Erro ao consultar o Mestre Arcano:", err);
-      const isAbort = err?.name === "AbortError";
-      const errorMessage: ChatMessage = {
-        id: `err-${Date.now()}`,
-        role: "assistant",
-        content: isAbort
-          ? "A consulta demorou mais que o esperado. Clique em um dos tópicos rápidos ou tente novamente."
-          : `Houve uma oscilação na conexão com a enciclopédia arcana (${err?.message || "Erro de rede"}).`,
-        timestamp: Date.now(),
-        isError: true,
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-      abortControllerRef.current = null;
-      inputRef.current?.focus();
-    }
-  };
-
-  const handleCancelRequest = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      setIsLoading(false);
-    }
-  };
-
-  const handleClearChat = () => {
-    setPendingConfirmation({
-      title: "Limpar conversa?",
-      description: "O histórico desta conversa será removido do navegador. Esta ação não pode ser desfeita.",
-      confirmLabel: "Limpar histórico",
-      onConfirm: () => {
-      const resetMsg: ChatMessage = {
-        id: `init-${Date.now()}`,
-        role: "assistant",
-        content: INITIAL_WELCOME,
-        timestamp: Date.now(),
-        blocks: parseResponseBlocks(INITIAL_WELCOME),
-      };
-      setMessages([resetMsg]);
-      },
-    });
-  };
-
-  const handleLogin = (user: UserProfile, remember = true) => {
-    authenticateUser(user, remember);
+  const handleLogin = (user: UserProfile) => {
+    authenticateUser(user);
     setActiveView("hub");
   };
 
   const handleLogout = () => {
     setIsProfileOpen(false);
-    setIsGrimoireOpen(false);
-    setIsKnowledgeOpen(false);
     setIsDiceOpen(false);
     setIsCharacterSheetOpen(false);
     setIsBestiaryOpen(false);
@@ -498,55 +245,25 @@ export default function App() {
     clearAuthSession();
   };
 
-  // Generate Report via localStorage (100% POST 405 error-free)
-  const handleGenerateReport = () => {
-    const reportData = {
-      title: `Relatório de Sessão & Consulta Arcana — ${activeSystem}`,
-      date: new Date().toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "long",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-      system: activeSystem,
-      user: currentUser?.name || "Mestre / Jogador",
-      role: currentUser?.role || "Mestre da Mesa",
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-      })),
-      grimoireCards: savedCards,
-      customRulesCount: customKnowledge.filter((k) => k.isActive).length,
-      generatedAt: Date.now(),
-    };
-
-    if (!persistSafely(STORAGE_KEYS.reportData, reportData)) {
-      handleStorageError(STORAGE_KEYS.reportData);
-      return;
-    }
-
-    window.open("/relatorio", "_blank");
-  };
-
   const handleUpdateProfile = (updated: UserProfile) => {
-    const safeUpdated = isUserAdmin(currentUser)
-      ? { ...updated, role: currentUser!.role, isAdmin: true, authorization: currentUser!.authorization }
-      : { ...updated, role: updated.role === "Administrador (ADM)" ? "Mestre da Mesa" : updated.role, isAdmin: false, authorization: undefined };
+    const safeUpdated = { ...updated, role: currentUser!.role, isAdmin: isUserAdmin(currentUser) };
     setCurrentUser(safeUpdated);
-    if (!persistSafely(
-      STORAGE_KEYS.currentUser,
-      sanitizeLocalProfile(safeUpdated as unknown as Record<string, unknown>),
-    )) {
-      handleStorageError(STORAGE_KEYS.currentUser);
+    if (supabase) {
+      void supabase.auth.updateUser({
+        data: {
+          display_name: safeUpdated.name,
+          avatar: safeUpdated.avatar,
+          favorite_system: safeUpdated.favoriteSystem,
+        },
+      });
+      void supabase.from("profiles").update({ display_name: safeUpdated.name }).eq("id", safeUpdated.id);
     }
     if (safeUpdated.favoriteSystem && safeUpdated.favoriteSystem !== activeSystem) {
       setActiveSystem(safeUpdated.favoriteSystem);
     }
   };
 
-  // Broadcast roll to Dual Chat & AI Codex
+  // Broadcast roll to the campaign chat
   const handleBroadcastRoll = (label: string, bonus: number) => {
     const roll20 = Math.floor(Math.random() * 20) + 1;
     const total = roll20 + bonus;
@@ -713,7 +430,7 @@ export default function App() {
               <span>Mestre Arcano</span>
             </div>
             <div className="text-[10px] tracking-[0.2em] uppercase text-[#8DAE8F] font-mono">
-              VTT & Códice de Regras
+              Fichas, Campanhas & VTT
             </div>
           </div>
 
@@ -726,9 +443,9 @@ export default function App() {
           </button>
         </div>
 
-        {/* View Switcher: HUB vs AI Rules vs VTT Battlemap */}
+        {/* View Switcher: HUB vs VTT Battlemap */}
         <div className="p-3 border-b border-[#38352A] bg-[#15140F]">
-          <div className="grid grid-cols-3 gap-1 p-1 bg-[#1C1A14] border border-[#38352A] rounded-xl text-xs font-mono">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-[#1C1A14] border border-[#38352A] rounded-xl text-xs font-mono">
             <button
               onClick={() => setActiveView("hub")}
               className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
@@ -739,17 +456,6 @@ export default function App() {
             >
               <Compass className="w-3.5 h-3.5" />
               <span>HUB</span>
-            </button>
-            <button
-              onClick={() => setActiveView("codex")}
-              className={`py-1.5 px-1 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                activeView === "codex"
-                  ? "bg-[#DFB56C] text-[#15140F] font-bold shadow-md"
-                  : "text-[#A79C82] hover:text-[#EFE8D8]"
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Códice</span>
             </button>
             <button
               onClick={() => setActiveView("vtt")}
@@ -858,23 +564,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Database button - restricted to Admins */}
-          {isCurrentUserAdmin && (
-            <button
-              onClick={() => setIsKnowledgeOpen(true)}
-              className="w-full flex items-center justify-between px-3 py-2 bg-[#15140F] hover:bg-[#25231B] border border-[#DFB56C]/40 hover:border-[#DFB56C] rounded-xl text-xs text-[#EFE8D8] transition-colors group"
-            >
-              <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-                <span className="font-medium">Banco de Dados</span>
-                <span className="text-[9px] font-mono text-[#DFB56C] bg-[#DFB56C]/10 px-1 py-0.2 rounded border border-[#DFB56C]/30">ADM</span>
-              </div>
-              <span className="font-mono text-[10px] bg-[#4B6B4E]/30 text-[#8DAE8F] border border-[#4B6B4E]/40 px-1.5 py-0.5 rounded">
-                {customKnowledge.length}
-              </span>
-            </button>
-          )}
-
           {/* Active System Section (Compact - Only selected shown) */}
           <div>
             <div className="text-[10px] tracking-widest uppercase text-[#A79C82] mb-2 font-mono flex items-center justify-between">
@@ -968,15 +657,6 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setActiveView(activeView === "codex" ? "vtt" : "codex")}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-mono transition-colors cursor-pointer bg-[#1F1D16] border border-[#DFB56C]/50 text-[#DFB56C]"
-                title="Alternar entre Códice e Mesa VTT"
-              >
-                {activeView === "codex" ? <Sparkles className="w-3.5 h-3.5 text-[#DFB56C]" /> : <MapIcon className="w-3.5 h-3.5 text-[#DFB56C]" />}
-                <span>{activeView === "codex" ? "Códice" : "Mesa VTT"}</span>
-              </button>
-
-              <button
                 onClick={() => setIsMobileSystemOpen(true)}
                 title="Clique para escolher outro sistema de RPG"
                 className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg active:scale-95 transition-all cursor-pointer shadow-xs group"
@@ -1015,23 +695,6 @@ export default function App() {
                 <span className="hidden md:inline">Ficha</span>
               </button>
 
-              <button
-                onClick={() => setIsGrimoireOpen(true)}
-                title="Grimório de Fichas Salvas"
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#D6CEBE] text-xs font-mono rounded-lg transition-colors cursor-pointer"
-              >
-                <BookMarked className="w-3.5 h-3.5 text-[#DFB56C]" />
-                <span>Grimório ({savedCards.length})</span>
-              </button>
-
-              <button
-                onClick={handleGenerateReport}
-                title="Gerar Relatório de Sessão (Nova Aba)"
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg transition-colors cursor-pointer"
-              >
-                <FileText className="w-3.5 h-3.5 text-[#DFB56C]" />
-                <span className="hidden sm:inline">Relatório</span>
-              </button>
             </div>
           </header>
         )}
@@ -1071,150 +734,12 @@ export default function App() {
             onOpenNpcFolders={() => setIsNpcFoldersOpen(true)}
             onOpenCampaignManager={() => setIsCampaignOpen(true)}
             onOpenDiceRoller={() => setIsDiceOpen(true)}
-            onOpenGrimoire={() => setIsGrimoireOpen(true)}
-            onOpenKnowledgeBase={() => setIsKnowledgeOpen(true)}
             onOpenSystemSelector={() => setIsMobileSystemOpen(true)}
             onOpenProfile={() => setIsProfileOpen(true)}
           />
         )}
 
-        {/* View Mode 1: CODEX & AI RULES ENGINE */}
-        {activeView === "codex" && (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
-            {/* Search Filter Bar */}
-            {showSearch && (
-              <div className="px-4 py-2 bg-[#171510] border-b border-[#2B2820] flex items-center gap-2 max-w-3xl mx-auto w-full">
-                <input
-                  type="text"
-                  aria-label="Filtrar histórico de mensagens"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filtrar histórico..."
-                  className="w-full bg-[#14130E] border border-[#38352A] rounded-lg px-3 py-1.5 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#8DAE8F]"
-                />
-                {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="text-xs text-[#A79C82] hover:text-[#EFE8D8]">
-                    Limpar
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Messages Stream */}
-            <div id="messages" className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 scroll-smooth">
-              <div className="max-w-3xl mx-auto w-full space-y-6 sm:space-y-8">
-                {hiddenMessageCount > 0 && (
-                  <p className="rounded-lg border border-[#38352A] bg-[#1D1B14] p-2 text-center text-xs text-[#A79C82]">
-                    {hiddenMessageCount} mensagens antigas foram ocultadas para manter a conversa rápida. Use a busca para encontrá-las.
-                  </p>
-                )}
-                {displayedMessages.map((msg) => (
-                  <div key={msg.id} className="content-auto-list-item w-full">
-                    {msg.role === "user" ? (
-                      <div className="flex justify-end">
-                        <div className="max-w-[85%] rounded-2xl px-4 py-3 bg-[#25231B] border border-[#38352A] text-[#EFE8D8] text-sm leading-relaxed shadow-sm">
-                          {msg.content}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-xs text-[#A79C82]">
-                          <ScrollText className="w-4 h-4 text-[#DFB56C]" />
-                          <span className="font-serif font-bold text-[#EFE8D8]">Mestre Arcano</span>
-                          {msg.activeSystem && (
-                            <span className="font-mono text-[10px] text-[#DFB56C] bg-[#DFB56C]/10 px-2 py-0.5 rounded">
-                              {SYSTEM_SHORT_LABELS[msg.activeSystem]?.short || msg.activeSystem}
-                            </span>
-                          )}
-                        </div>
-
-                        {msg.blocks && msg.blocks.length > 0 ? (
-                          msg.blocks.map((b, idx) =>
-                            b.type === "card" && b.card ? (
-                              <RpgCard
-                                key={idx}
-                                card={b.card}
-                                onToggleBookmark={() => handleToggleBookmark(b.card)}
-                                isBookmarked={isCardBookmarked(b.card)}
-                              />
-                            ) : (
-                              <div
-                                key={idx}
-                                className="prose prose-invert max-w-none text-sm text-[#D6CEBE] leading-relaxed"
-                              >
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{"content" in b ? b.content : ""}</ReactMarkdown>
-                              </div>
-                            )
-                          )
-                        ) : (
-                          <div className="prose prose-invert max-w-none text-sm text-[#D6CEBE] leading-relaxed">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                          </div>
-                        )}
-                        {(msg.confidence || (msg.sources && msg.sources.length > 0)) && (
-                          <aside className="rounded-xl border border-[#38352A] bg-[#171510] p-3 text-xs text-[#A79C82]" aria-label="Confiança e fontes da resposta">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono uppercase tracking-wide">Confiança:</span>
-                              <span className={msg.confidence === "high" ? "text-[#8DAE8F]" : msg.confidence === "medium" ? "text-[#DFB56C]" : "text-[#C4645A]"}>
-                                {msg.confidence === "high" ? "alta" : msg.confidence === "medium" ? "média" : "baixa"}
-                              </span>
-                              {msg.isFallback && <span className="rounded bg-[#7A2E27]/30 px-2 py-0.5 text-[#C4645A]">fallback local</span>}
-                            </div>
-                            {msg.sources && msg.sources.length > 0 && (
-                              <ul className="mt-2 space-y-1">
-                                {msg.sources.map((source) => <li key={source.id}>• {source.title} — {source.system} ({source.category})</li>)}
-                              </ul>
-                            )}
-                            {(!msg.sources || msg.sources.length === 0) && <p className="mt-2">Sem fonte recuperada; confirme a regra no livro ou SRD aplicável.</p>}
-                          </aside>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {isLoading && (
-                  <div className="flex items-center gap-3 p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl animate-pulse text-xs text-[#DFB56C] font-mono">
-                    <Sparkles className="w-4 h-4 animate-spin" />
-                    <span>Consultando pergaminhos e calculando regras...</span>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-            </div>
-
-            {/* AI Codex Input Bar */}
-            <div className="p-4 bg-[#171510] border-t border-[#2B2820] shrink-0">
-              <div className="max-w-3xl mx-auto w-full space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    aria-label={`Perguntar sobre regras de ${SYSTEM_SHORT_LABELS[activeSystem]?.short || activeSystem}`}
-                    placeholder={`Pergunte ao Mestre Arcano sobre regras de ${SYSTEM_SHORT_LABELS[activeSystem]?.short || activeSystem}...`}
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSendMessage();
-                    }}
-                    disabled={isLoading}
-                    className="flex-1 bg-[#14130E] border border-[#38352A] rounded-xl px-4 py-2.5 text-sm text-[#EFE8D8] placeholder-[#A79C82] outline-none focus:border-[#DFB56C]"
-                  />
-                  <button
-                    onClick={() => handleSendMessage()}
-                    disabled={isLoading || !inputText.trim()}
-                    className="px-4 py-2.5 bg-[#DFB56C] hover:bg-[#b08635] disabled:opacity-50 text-[#15140F] font-bold rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span className="hidden sm:inline">Consultar</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* View Mode 2: VTT BATTLEMAP & LOCAL DUAL CHAT */}
+        {/* View Mode 1: VTT BATTLEMAP & LOCAL DUAL CHAT */}
         {activeView === "vtt" && (
           <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Interactive Battlemap with Initiative Bar */}
@@ -1332,17 +857,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Floating Sidebar Open Button (visible when sidebar is closed) */}
-        {!isSidebarOpen && (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="fixed bottom-5 left-5 z-40 px-3.5 py-2.5 rounded-2xl bg-[#DFB56C] hover:bg-[#F3CF8A] text-[#15140F] font-black shadow-2xl transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-2 border-2 border-[#15140F] animate-in fade-in"
-            title="Abrir Barra Lateral"
-          >
-            <PanelLeftOpen className="w-4 h-4" />
-            <span className="text-xs uppercase font-mono tracking-wider font-bold hidden sm:inline">Menu Lateral</span>
-          </button>
-        )}
       </main>
 
       {/* ================= ALL 8 FEATURE MODALS ================= */}
@@ -1353,6 +867,11 @@ export default function App() {
         <CharacterSheetModal
           isOpen
           sheet={editingCharacter}
+          characters={characters}
+          onSelectCharacter={(character) => {
+            setEditingCharacter(character);
+            setActiveCharacter(character);
+          }}
           onClose={() => setIsCharacterSheetOpen(false)}
           onSave={(updated) => {
             const list = characters.map((c) => (c.id === updated.id ? updated : c));
@@ -1438,78 +957,23 @@ export default function App() {
         />
       )}
 
-      {/* Original Core Modals (Dice, Knowledge, Grimoire, Profile) */}
+      {/* Original Core Modals (Dice and Profile) */}
       {isDiceOpen && (
         <DiceRoller
         isOpen
         onClose={() => setIsDiceOpen(false)}
-        onSendToChat={(rollText) => {
-          if (activeView === "vtt") {
-            setCampaignMessages((prev) => [
-              ...prev,
-              {
-                id: `dice-${Date.now()}`,
-                senderId: currentUser.id,
-                senderName: currentUser.name,
-                channel: "IC",
-                content: rollText,
-                timestamp: Date.now(),
-                type: "ROLL",
-              },
-            ]);
-          } else {
-            setInputText(rollText);
-            handleSendMessage(rollText);
-          }
-        }}
-        />
-      )}
-
-      {isKnowledgeOpen && (
-        <KnowledgeBaseModal
-        isOpen
-        onClose={() => setIsKnowledgeOpen(false)}
-        entries={customKnowledge}
-        onSaveEntry={handleSaveKnowledgeEntry}
-        onDeleteEntry={handleDeleteKnowledgeEntry}
-        onToggleEntry={handleToggleKnowledgeEntry}
-        onResetDefaults={handleResetKnowledgeDefaults}
-        onExportJSON={handleExportKnowledgeJSON}
-        onImportJSON={handleImportKnowledgeJSON}
-        isAdmin={isCurrentUserAdmin}
-        onAskAboutEntry={(title) => {
-          setIsKnowledgeOpen(false);
-          setActiveView("codex");
-          setInputText(`Explique a regra: ${title}`);
-          handleSendMessage(`Explique a regra: ${title}`);
-        }}
-        />
-      )}
-
-      {isGrimoireOpen && (
-        <GrimoireDrawer
-        isOpen
-        onClose={() => setIsGrimoireOpen(false)}
-        savedCards={savedCards}
-        onRemoveCard={(cardId) => setSavedCards((prev) => prev.filter((c) => c.id !== cardId))}
-        onClearAll={() => {
-          setPendingConfirmation({
-            title: "Esvaziar o Grimório?",
-            description: "Todas as fichas arquivadas serão removidas permanentemente deste navegador.",
-            confirmLabel: "Apagar fichas",
-            onConfirm: () => setSavedCards([]),
-          });
-        }}
-        onAskFollowUp={(prompt) => {
-          setIsGrimoireOpen(false);
-          setActiveView("codex");
-          setInputText(prompt);
-          handleSendMessage(prompt);
-        }}
-        onOpenDice={() => {
-          setIsGrimoireOpen(false);
-          setIsDiceOpen(true);
-        }}
+        onSendToChat={(rollText) => setCampaignMessages((prev) => [
+          ...prev,
+          {
+            id: `dice-${Date.now()}`,
+            senderId: currentUser.id,
+            senderName: currentUser.name,
+            channel: "IC",
+            content: rollText,
+            timestamp: Date.now(),
+            type: "ROLL",
+          },
+        ])}
         />
       )}
 
@@ -1520,9 +984,6 @@ export default function App() {
         user={currentUser}
         onUpdateUser={handleUpdateProfile}
         onLogout={handleLogout}
-        savedCardsCount={savedCards.length}
-        messagesCount={messages.filter((m) => m.role === "user").length}
-        rulesCount={customKnowledge.filter((e) => e.isActive).length}
         />
       )}
       </React.Suspense>

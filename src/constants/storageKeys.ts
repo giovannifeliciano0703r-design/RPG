@@ -1,8 +1,5 @@
 export const STORAGE_KEYS = {
   system: "mestre_arcano_system:v2",
-  chatHistory: "mestre_arcano_chat_history:v2",
-  grimoire: "mestre_arcano_grimoire:v2",
-  customKnowledge: "mestre_arcano_custom_knowledge:v2",
   currentUser: "mestre_arcano_current_user:v2",
   registeredUsers: "mestre_arcano_registered_users:v2",
   characters: "mestre_arcano_characters:v2",
@@ -14,15 +11,10 @@ export const STORAGE_KEYS = {
   campaignChat: "mestre_arcano_campaign_chat:v2",
   battlemap: "mestre_arcano_battlemap:v2",
   initiative: "mestre_arcano_initiative:v2",
-  report: "mestre_arcano_relatorio:v2",
-  reportData: "relatorio_data:v2",
 } as const;
 
 const LEGACY_KEYS: Record<keyof typeof STORAGE_KEYS, string> = {
   system: "mestre_arcano_system",
-  chatHistory: "mestre_arcano_chat_history",
-  grimoire: "mestre_arcano_grimoire",
-  customKnowledge: "mestre_arcano_custom_knowledge",
   currentUser: "mestre_arcano_current_user",
   registeredUsers: "mestre_arcano_registered_users",
   characters: "mestre_arcano_characters",
@@ -34,8 +26,6 @@ const LEGACY_KEYS: Record<keyof typeof STORAGE_KEYS, string> = {
   campaignChat: "mestre_arcano_campaign_chat",
   battlemap: "mestre_arcano_battlemap",
   initiative: "mestre_arcano_initiative",
-  report: "mestre_arcano_relatorio",
-  reportData: "relatorio_data",
 };
 
 export function migrateLocalStorageSchema(): void {

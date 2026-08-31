@@ -22,7 +22,5 @@ export async function toUserProfile(user: User): Promise<UserProfile> {
     favoriteSystem: normalizeRpgSystem(user.user_metadata.favorite_system),
     createdAt: new Date(user.created_at).getTime(),
     isAdmin: globalRole === "admin",
-    authorization: globalRole === "admin" ? { source: "server", permissions: ["knowledge:manage"] } : undefined,
   };
 }
-

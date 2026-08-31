@@ -16,39 +16,27 @@ export function sanitizeLocalProfile(user: Record<string, unknown>): Record<stri
   return sanitized;
 }
 
-/** One-time client migration for older demo builds that stored passwords. */
+/** Removes authentication artifacts from older local/demo builds. */
 export function migrateStoredUsers(): void {
   try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (raw) {
-      const users = JSON.parse(raw);
-      if (Array.isArray(users)) {
-        let changed = false;
-        const sanitized = users.map((user) => {
-          if (!user || typeof user !== "object") return user;
-          if ("password" in user || "authorization" in user || user.isAdmin || user.role === "Administrador (ADM)") {
-            changed = true;
-            return sanitizeLocalProfile(user);
-          }
-          return user;
-        });
-
-        if (changed) localStorage.setItem(USERS_KEY, JSON.stringify(sanitized));
-      }
-    }
+    localStorage.removeItem(USERS_KEY);
+    localStorage.removeItem(CURRENT_USER_KEY);
+    localStorage.removeItem("mestre_arcano_registered_users");
+    localStorage.removeItem("mestre_arcano_current_user");
+    for (const obsoleteKey of [
+      "mestre_arcano_chat_history:v2",
+      "mestre_arcano_grimoire:v2",
+      "mestre_arcano_custom_knowledge:v2",
+      "mestre_arcano_relatorio:v2",
+      "relatorio_data:v2",
+      "mestre_arcano_chat_history",
+      "mestre_arcano_grimoire",
+      "mestre_arcano_custom_knowledge",
+      "mestre_arcano_relatorio",
+      "relatorio_data",
+    ]) localStorage.removeItem(obsoleteKey);
   } catch (error) {
-    console.warn("Não foi possível migrar usuários armazenados.", error);
-  }
-
-  try {
-    const rawCurrentUser = localStorage.getItem(CURRENT_USER_KEY);
-    if (!rawCurrentUser) return;
-    const currentUser = JSON.parse(rawCurrentUser);
-    if (currentUser && typeof currentUser === "object") {
-      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(sanitizeLocalProfile(currentUser)));
-    }
-  } catch (error) {
-    console.warn("Não foi possível remover privilégios locais antigos.", error);
+    console.warn("Não foi possível remover perfis locais antigos.", error);
   }
 }
 

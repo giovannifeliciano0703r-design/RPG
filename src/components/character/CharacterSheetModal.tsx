@@ -74,6 +74,44 @@ const ALL_DND_SKILLS: Array<{ id: string; name: string; statKey: "dex" | "str" |
   { id: "prestidigitacao", name: "PRESTIDIGITAÇÃO", statKey: "dex" },
 ];
 
+const MAX_AVATAR_FILE_SIZE = 10 * 1024 * 1024;
+
+function createAvatarDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      reject(new Error("Escolha um arquivo de imagem válido."));
+      return;
+    }
+    if (file.size > MAX_AVATAR_FILE_SIZE) {
+      reject(new Error("A imagem deve ter no máximo 10 MB."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("A imagem selecionada não pôde ser aberta."));
+      image.onload = () => {
+        const maxDimension = 512;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("Não foi possível preparar a imagem."));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
   isOpen,
   sheet,
@@ -86,6 +124,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
   const [data, setData] = useState<CharacterSheet>({ ...sheet });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showCharList, setShowCharList] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   // Search & filter states
   const [inventorySearch, setInventorySearch] = useState("");
@@ -144,6 +183,18 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
   const updateField = <K extends keyof CharacterSheet>(key: K, value: CharacterSheet[K]) => {
     const updated = { ...data, [key]: value, updatedAt: Date.now() };
     setData(updated);
+  };
+
+  const handleAvatarFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setAvatarError("");
+    try {
+      updateField("avatarUrl", await createAvatarDataUrl(file));
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : "Não foi possível usar esta imagem.");
+    }
   };
 
   const handleSave = () => {
@@ -347,15 +398,34 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1">
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">URL do Avatar / Retrato</label>
-                <input
-                  type="text"
-                  value={data.avatarUrl || ""}
-                  onChange={(e) => updateField("avatarUrl", e.target.value)}
-                  placeholder="https://exemplo.com/avatar.png"
-                  className="w-full mt-1 px-3 py-1.5 bg-[#15140F] border border-[#38352A] rounded-xl text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
-                />
+              <div className="flex-1 min-w-0 space-y-2">
+                <div>
+                  <span className="block text-[10px] font-bold text-[#A79C82] uppercase">Avatar / Retrato</span>
+                  <label className="mt-1 inline-flex min-h-10 items-center gap-2 rounded-xl border border-[#DFB56C]/60 bg-[#DFB56C]/10 px-3 py-2 text-xs font-bold text-[#DFB56C] hover:bg-[#DFB56C]/20 cursor-pointer transition-colors">
+                    <Upload className="w-4 h-4" />
+                    <span>Escolher da galeria</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarFile}
+                      className="sr-only"
+                      aria-label="Escolher imagem do personagem na galeria do aparelho"
+                    />
+                  </label>
+                  <p className="mt-1 text-[10px] text-[#8A8270]">JPG, PNG, WebP ou outra imagem de até 10 MB.</p>
+                  {avatarError ? <p role="alert" className="mt-1 text-[10px] text-[#C4645A]">{avatarError}</p> : null}
+                </div>
+                <div>
+                  <label htmlFor="character-avatar-url" className="text-[10px] font-bold text-[#A79C82] uppercase">Ou cole uma URL</label>
+                  <input
+                    id="character-avatar-url"
+                    type="url"
+                    value={data.avatarUrl || ""}
+                    onChange={(e) => updateField("avatarUrl", e.target.value)}
+                    placeholder="https://exemplo.com/avatar.png"
+                    className="w-full mt-1 px-3 py-1.5 bg-[#15140F] border border-[#38352A] rounded-xl text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
+                  />
+                </div>
               </div>
             </div>
 

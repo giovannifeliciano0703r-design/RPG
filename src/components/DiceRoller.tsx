@@ -417,7 +417,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
                         onSendToChat(rollText);
                         onClose();
                       }}
-                      title="Enviar resultado para o chat do Oráculo"
+                      title="Enviar resultado para o chat da campanha"
                       className="ml-2 px-2 py-1 bg-[#4B6B4E]/30 hover:bg-[#4B6B4E]/50 border border-[#4B6B4E]/60 text-[#8DAE8F] hover:text-[#E9F1E9] text-[10px] font-mono rounded flex items-center gap-1 transition-colors cursor-pointer"
                     >
                       <MessageSquare className="w-3 h-3" />
