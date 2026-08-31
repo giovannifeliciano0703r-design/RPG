@@ -45,7 +45,7 @@ export function useLiveCampaign(options: Options) {
   const remoteId = campaign?.remoteId;
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !campaign || !user || user.isGuest || campaign.remoteId) return;
+    if (!isSupabaseConfigured || !supabase || !campaign || !user || campaign.remoteId) return;
     let cancelled = false;
     setStatus("connecting");
     void createRemoteCampaign(campaign).then((id) => {

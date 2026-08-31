@@ -1,9 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   Sparkles,
   Scroll,
   Map as MapIcon,
-  BookOpen,
   Flame,
   Sword,
   Shield,
@@ -14,12 +13,10 @@ import {
   Crown,
   Users,
   ExternalLink,
-  ChevronRight,
   Plus,
   Compass,
   CheckCircle2,
   Heart,
-  Megaphone,
   Menu,
   ChevronDown,
 } from "lucide-react";
@@ -34,7 +31,7 @@ interface HubViewProps {
   activeCharacter: CharacterSheet | null;
   characters: CharacterSheet[];
   activeSystem: RpgSystem;
-  onNavigateView: (view: "codex" | "vtt" | "hub") => void;
+  onNavigateView: (view: "vtt" | "hub") => void;
   onToggleSidebar?: () => void;
   onOpenCharacterSheet: (character?: CharacterSheet) => void;
   onOpenBestiary: () => void;
@@ -43,8 +40,6 @@ interface HubViewProps {
   onOpenNpcFolders: () => void;
   onOpenCampaignManager: () => void;
   onOpenDiceRoller: () => void;
-  onOpenGrimoire: () => void;
-  onOpenKnowledgeBase: () => void;
   onOpenSystemSelector: () => void;
   onOpenProfile: () => void;
 }
@@ -63,13 +58,9 @@ export const HubView: React.FC<HubViewProps> = ({
   onOpenNpcFolders,
   onOpenCampaignManager,
   onOpenDiceRoller,
-  onOpenGrimoire,
-  onOpenKnowledgeBase,
   onOpenSystemSelector,
   onOpenProfile,
 }) => {
-  const [showAnnouncementDetails, setShowAnnouncementDetails] = useState(false);
-
   return (
     <div className="flex-1 flex flex-col h-full bg-[#15140F] text-[#EFE8D8] overflow-y-auto custom-scrollbar">
       {/* Top Banner Navigation Bar */}
@@ -110,15 +101,6 @@ export const HubView: React.FC<HubViewProps> = ({
           >
             <MapIcon className="w-3.5 h-3.5 text-[#DFB56C]" />
             <span>Mesa VTT</span>
-          </button>
-
-          <button
-            onClick={() => onNavigateView("codex")}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Códice de Regras & Oráculo IA"
-          >
-            <BookOpen className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Códice & IA</span>
           </button>
 
           <button
@@ -165,80 +147,28 @@ export const HubView: React.FC<HubViewProps> = ({
           <div className="absolute right-1/4 bottom-10 w-72 h-72 bg-[#4B6B4E]/10 rounded-full blur-3xl pointer-events-none" />
 
           {/* Top greeting badge row */}
-          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+          <div className="relative z-10 flex flex-wrap items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-[#4B6B4E]/20 border border-[#4B6B4E]/40 rounded-xl text-[#8DAE8F] font-bold text-xs tracking-wider uppercase shadow-xs">
               <Sparkles className="w-4 h-4 text-[#8DAE8F]" />
               <span>PAINEL PRINCIPAL MESTRE ARCANO</span>
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-mono text-[#A79C82]">
-              <span>Sessão de:</span>
-              <span className="text-[#DFB56C] font-bold bg-[#15140F] px-2.5 py-1 rounded-lg border border-[#38352A]">
-                {currentUser.name} ({currentUser.role})
-              </span>
-            </div>
           </div>
 
           {/* Central Hero Content */}
           <div className="relative z-10 space-y-5 my-auto py-6">
             <div className="space-y-3">
               <div className="text-xs sm:text-sm font-mono tracking-widest text-[#DFB56C] uppercase font-bold">
-                Plataforma de RPG de Mesa & Códice Digital
+                Plataforma de RPG de Mesa & Gestão de Campanhas
               </div>
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black font-serif tracking-tight text-[#EFE8D8] leading-tight drop-shadow-md">
                 Bem-vindo ao Portal Mestre Arcano
               </h1>
               <p className="text-sm sm:text-lg text-[#D6CEBE] max-w-3xl leading-relaxed">
-                Sua central completa para RPGs de mesa. Crie e edite fichas detalhadas de personagens, organize o Bestiário, execute rolagens automáticas com macros, consulte regras no Códice com IA e conduza batalhas táticas na Mesa Virtual VTT.
+                Sua central completa para RPGs de mesa. Crie e edite fichas detalhadas de personagens, organize o Bestiário, execute rolagens automáticas com macros e conduza batalhas táticas na Mesa Virtual VTT.
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3.5 pt-2">
-              <button
-                onClick={() => onOpenCharacterSheet(activeCharacter || undefined)}
-                className="px-6 py-3 bg-[#DFB56C] hover:bg-[#F3CF8A] text-[#15140F] font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl shadow-2xl transition-all cursor-pointer flex items-center gap-2.5 hover:scale-105 active:scale-95"
-              >
-                <Users className="w-4 h-4" />
-                <span>{activeCharacter ? `Abrir Ficha: ${activeCharacter.name}` : "Criar Ficha de Personagem"}</span>
-              </button>
-
-              <button
-                onClick={() => onNavigateView("vtt")}
-                className="px-6 py-3 bg-[#15140F] hover:bg-[#232018] border border-[#38352A] hover:border-[#DFB56C] text-[#EFE8D8] font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer flex items-center gap-2.5 shadow-lg"
-              >
-                <MapIcon className="w-4 h-4 text-[#DFB56C]" />
-                <span>Entrar na Mesa Virtual (VTT)</span>
-              </button>
-
-              <button
-                onClick={() => onNavigateView("codex")}
-                className="px-5 py-3 bg-[#15140F] hover:bg-[#232018] border border-[#38352A] hover:border-[#DFB56C] text-[#D6CEBE] hover:text-[#EFE8D8] font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer flex items-center gap-2"
-              >
-                <BookOpen className="w-4 h-4 text-[#DFB56C]" />
-                <span>Códice & Oráculo IA</span>
-              </button>
-
-              <button
-                onClick={() => setShowAnnouncementDetails(!showAnnouncementDetails)}
-                className="px-4 py-3 bg-transparent hover:bg-[#15140F] text-[#A79C82] hover:text-[#EFE8D8] text-xs font-mono rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
-              >
-                <span>{showAnnouncementDetails ? "Ocultar Recursos" : "Ver Recursos Ativos"}</span>
-                <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showAnnouncementDetails ? "rotate-90" : ""}`} />
-              </button>
-            </div>
-
-            {/* Announcement Details expandable box */}
-            {showAnnouncementDetails && (
-              <div className="mt-4 p-5 bg-[#15140F]/90 border border-[#38352A] rounded-2xl space-y-2 text-xs text-[#D6CEBE] animate-in fade-in backdrop-blur-sm">
-                <h4 className="font-bold text-[#DFB56C] uppercase font-mono">Recursos Integrados do Sistema:</h4>
-                <ul className="list-disc list-inside space-y-1.5 text-[#D6CEBE]">
-                  <li>Layout completo de Ficha de Personagem com atributos, salvaguardas, perícias, inventário com slots e notas estruturadas.</li>
-                  <li>Mesa Virtual (VTT) tática com grid ajustável, névoa de guerra, tokens com permissão de criador/GM e chat IC/OOC.</li>
-                  <li>Códice de Regras com IA inteligente sincronizada com regras oficiais e regras da casa customizadas.</li>
-                  <li>Bestiário integrado com invocação de tokens direta para o mapa e catálogo de monstros.</li>
-                </ul>
-              </div>
-            )}
           </div>
 
           {/* Bottom scroll down indicator */}
@@ -263,7 +193,7 @@ export const HubView: React.FC<HubViewProps> = ({
         <div id="hub-content" className="space-y-6 pt-2">
 
         {/* Featured Quick Banner Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Card 1: VTT */}
           <div
             onClick={() => onNavigateView("vtt")}
@@ -274,18 +204,6 @@ export const HubView: React.FC<HubViewProps> = ({
               <h4 className="font-bold text-sm text-[#EFE8D8]">Entrar no Battlemap</h4>
             </div>
             <ExternalLink className="w-5 h-5 text-[#8DAE8F] group-hover:scale-110 transition-transform" />
-          </div>
-
-          {/* Card 2: Knowledge Base */}
-          <div
-            onClick={onOpenKnowledgeBase}
-            className="p-4 bg-[#1D1B14] border border-[#7A2E27]/50 hover:border-[#C4645A] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#C4645A]">BASE DE REGRAS</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Regras da Casa & Lore</h4>
-            </div>
-            <Megaphone className="w-5 h-5 text-[#C4645A] group-hover:scale-110 transition-transform" />
           </div>
 
           {/* Card 3: Bestiário */}
@@ -421,30 +339,7 @@ export const HubView: React.FC<HubViewProps> = ({
               </div>
             </div>
 
-            {/* 3. Códice & Oráculo IA de Regras */}
-            <div
-              onClick={() => onNavigateView("codex")}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-xl bg-[#B08635]/20 border border-[#B08635]/40 flex items-center justify-center text-[#DFB56C]">
-                  <BookOpen className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-[10px] font-mono bg-[#15140F] text-[#DFB56C] px-2 py-0.5 rounded border border-[#38352A]">
-                  IA Oficial & Custom
-                </span>
-              </div>
-              <div>
-                <h4 className="font-bold text-base text-[#EFE8D8] group-hover:text-[#DFB56C] transition-colors">
-                  Códice & Oráculo IA
-                </h4>
-                <p className="text-xs text-[#A79C82] mt-1 leading-relaxed">
-                  Tire dúvidas em tempo real de D&D 5e, Tormenta20, Ordem Paranormal e regras da casa.
-                </p>
-              </div>
-            </div>
-
-            {/* 4. Bestiário de Monstros */}
+            {/* 3. Bestiário de Monstros */}
             <div
               onClick={onOpenBestiary}
               className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"

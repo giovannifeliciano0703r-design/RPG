@@ -9,12 +9,9 @@ import {
   Moon,
   Skull,
   LogOut,
-  Sparkles,
-  BookMarked,
-  MessageSquare,
-  Database,
   Check,
   Flame,
+  Sparkles,
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
@@ -25,9 +22,6 @@ interface UserProfileModalProps {
   user: UserProfile;
   onUpdateUser: (updated: UserProfile) => void;
   onLogout: () => void;
-  savedCardsCount: number;
-  messagesCount: number;
-  rulesCount: number;
 }
 
 const AVATARS = [
@@ -45,9 +39,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   user,
   onUpdateUser,
   onLogout,
-  savedCardsCount,
-  messagesCount,
-  rulesCount,
 }) => {
   const isAdmin = isUserAdmin(user);
   const [name, setName] = useState(user.name);
@@ -101,11 +92,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     <Crown className="w-3 h-3" /> ADM (Banco de Dados)
                   </span>
                 )}
-                {user.isGuest && (
-                  <span className="text-[10px] font-mono bg-[#38352A] text-[#A79C82] px-1.5 py-0.5 rounded">
-                    Convidado
-                  </span>
-                )}
               </h2>
               <p className="text-xs font-mono text-[#A79C82]">{user.email}</p>
             </div>
@@ -123,30 +109,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Content Scroll */}
         <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
-          {/* Quick Stats Grid */}
-          <div className="grid grid-cols-3 gap-2 p-3 bg-[#15140F] border border-[#38352A] rounded-xl text-center">
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-mono font-bold text-[#DFB56C]">{savedCardsCount}</span>
-              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
-                <BookMarked className="w-3 h-3 text-[#B08635]" /> Grimório
-              </span>
-            </div>
-            <div className="flex flex-col items-center border-x border-[#38352A]">
-              <span className="text-lg font-mono font-bold text-[#8DAE8F]">
-                {isAdmin ? rulesCount : "🔒 ADM"}
-              </span>
-              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
-                <Database className="w-3 h-3 text-[#8DAE8F]" /> Banco DB
-              </span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-lg font-mono font-bold text-[#C4645A]">{messagesCount}</span>
-              <span className="text-[10px] font-mono text-[#A79C82] flex items-center gap-1">
-                <MessageSquare className="w-3 h-3 text-[#C4645A]" /> Consultas
-              </span>
-            </div>
-          </div>
-
           {/* Form Fields */}
           <div>
             <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
