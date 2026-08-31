@@ -1,6 +1,6 @@
 # 🎲 Mestre Arcano RPG
 
-Central local para mesas de RPG construída com React, TypeScript, Vite e Express. Reúne consulta assistida por IA, fichas, bestiário, macros, biblioteca de mídia, NPCs, campanhas, battlemap, iniciativa e relatórios.
+Plataforma para mesas de RPG construída com React, TypeScript, Vite, Express e Supabase. Reúne consulta assistida por IA, fichas, bestiário, macros, biblioteca de mídia, NPCs, campanhas, battlemap, iniciativa e relatórios. Sem configuração do Supabase, o modo local continua disponível.
 
 ## Recursos
 
@@ -12,6 +12,7 @@ Central local para mesas de RPG construída com React, TypeScript, Vite e Expres
 - armazenamento local versionado, validado, limitado e gravado com debounce;
 - backup/restauração local e Error Boundary;
 - interface responsiva com diálogos acessíveis e módulos carregados sob demanda.
+- contas reais, banco Postgres, políticas RLS, canais Realtime e armazenamento privado de mídia via Supabase;
 
 ## Desenvolvimento
 
@@ -33,9 +34,9 @@ npm run build
 
 O workflow em `.github/workflows/ci.yml` executa as mesmas verificações em todo pull request para `main`.
 
-## Configuração do servidor
+## Configuração
 
-Copie `.env.example` para `.env` e configure apenas no ambiente do servidor. Nunca use uma variável `VITE_*` para chaves ou credenciais.
+Copie `.env.example` para `.env.local`. A URL e a chave **publicável** do Supabase podem ser usadas no navegador; nunca exponha uma chave `secret`/`service_role` em variáveis `VITE_*`.
 
 | Variável | Finalidade |
 | --- | --- |
@@ -46,10 +47,15 @@ Copie `.env.example` para `.env` e configure apenas no ambiente do servidor. Nun
 | `ADMIN_EMAIL` | E-mail de login administrativo |
 | `ADMIN_PASSWORD_HASH` | Hash `scrypt:<salt>:<hash>` gerado pela função server-side `hashPassword` |
 | `ADMIN_DISPLAY_NAME` | Nome público opcional do administrador |
+| `VITE_SUPABASE_URL` | URL pública do projeto Supabase |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Chave publicável protegida por RLS; não use a chave secreta |
+
+As migrações versionadas ficam em `supabase/migrations`. A primeira cria perfis, campanhas, membros, chat, snapshots do VTT e metadados de mídia; também configura RLS, Realtime e o bucket privado `campaign-media`.
 
 ## Segurança e autenticação
 
-- perfis locais são um recurso de demonstração e não possuem senha;
+- quando configurado, e-mail e senha são processados pelo Supabase Auth e nunca gravados no `localStorage`;
+- perfis locais continuam sendo um recurso offline de demonstração e não possuem senha;
 - senhas e flags administrativas antigas são removidas automaticamente do `localStorage`;
 - acesso administrativo depende de allowlist e validação server-side, nunca de prefixo de e-mail ou `role` enviado pelo navegador;
 - a sessão administrativa usa cookie assinado, `HttpOnly`, `SameSite=Strict` e `Secure` em produção;
@@ -57,15 +63,15 @@ Copie `.env.example` para `.env` e configure apenas no ambiente do servidor. Nun
 - a API restringe tamanho de corpo e histórico, valida origem em mutações e envia cabeçalhos de segurança;
 - o parser de macros aceita somente a gramática aritmética prevista e não usa `eval` ou `new Function`.
 
-O modo local não substitui um provedor de identidade. Para múltiplos usuários reais, use autenticação, banco, autorização por recurso e trilha de auditoria no backend.
+Papéis globais e papéis por campanha são gravados no banco e protegidos por RLS. Um cliente não consegue se promover a GM ou administrador alterando o JavaScript ou o armazenamento do navegador.
 
 ## Persistência
 
 Estados pequenos usam chaves `v2` do `localStorage`, gravação com debounce e guardas de quota. Falhas deixam de ser ignoradas silenciosamente e geram aviso na interface.
 
-Imagens e miniaturas são armazenadas como `Blob` no IndexedDB. Na primeira abertura, a aplicação migra a biblioteca Base64 legada e só remove a chave antiga após uma gravação bem-sucedida. Para uso multiusuário ou grandes acervos, use object storage e mantenha no banco apenas IDs e metadados.
+Imagens locais e miniaturas são armazenadas como `Blob` no IndexedDB. Contas hospedadas usam o bucket privado do Supabase Storage, com limite de 10 MB, MIME allowlist, caminho por usuário e metadados no Postgres.
 
-Campanhas e VTT continuam locais: dois navegadores não compartilham estado. Multiplayer real requer backend, WebSocket/realtime e controle de acesso por campanha.
+O esquema hospedado fornece mensagens e snapshots de VTT compartilhados em tempo real, com permissões de leitura por membro e escrita de estado somente para GM/admin. O serviço local permanece como fallback offline durante a migração gradual da interface.
 
 ## IA e base de conhecimento
 
@@ -81,10 +87,8 @@ Consulte [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) e [CONTENT_POLICY.md
 
 ## Próximas etapas
 
-- backend persistente e sincronização realtime para campanhas;
-- object storage para bibliotecas compartilhadas;
 - busca vetorial/embeddings para acervos grandes;
-- testes end-to-end de autenticação, IndexedDB e fluxos do VTT;
+- testes end-to-end adicionais de IndexedDB e fluxos completos do VTT;
 - divisão adicional do estado de `App.tsx` em contextos por domínio;
 - auditoria contínua de acessibilidade e proveniência do conteúdo.
 

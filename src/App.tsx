@@ -89,6 +89,8 @@ import { useMediaAssets } from "./hooks/useMediaAssets";
 import { ConfirmDialog } from "./components/ui/Dialog";
 import { STORAGE_KEYS } from "./constants/storageKeys";
 import { persistSafely } from "./utils/storageGuard";
+import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import { toUserProfile } from "./auth/supabaseAuth";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -355,6 +357,20 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
+    if (isSupabaseConfigured && supabase) {
+      supabase.auth.getUser().then(async ({ data }) => {
+        if (!cancelled && data.user) setCurrentUser(await toUserProfile(data.user));
+      }).catch(() => undefined).finally(() => {
+        if (!cancelled) setIsAuthChecking(false);
+      });
+      const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_OUT" && !cancelled) setCurrentUser(null);
+      });
+      return () => {
+        cancelled = true;
+        listener.subscription.unsubscribe();
+      };
+    }
     fetch("/api/auth/session", { credentials: "same-origin", headers: { Accept: "application/json" } })
       .then(async (response) => (response.ok ? response.json() : { user: null }))
       .then((payload) => {
@@ -617,6 +633,7 @@ export default function App() {
       localStorage.removeItem(STORAGE_KEYS.currentUser);
     } catch (e) {}
     void fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
+    if (supabase) void supabase.auth.signOut().catch(() => undefined);
   };
 
   // Generate Report via localStorage (100% POST 405 error-free)
