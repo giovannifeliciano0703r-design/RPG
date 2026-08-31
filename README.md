@@ -1,84 +1,93 @@
 # 🎲 Mestre Arcano RPG
 
-Uma central de RPG de mesa construída com React, TypeScript e Vite, reunindo **Mestre de IA, fichas, bestiário, macros, biblioteca de mídia, NPCs, campanhas e mesa virtual** em uma única aplicação.
+Central local para mesas de RPG construída com React, TypeScript, Vite e Express. Reúne consulta assistida por IA, fichas, bestiário, macros, biblioteca de mídia, NPCs, campanhas, battlemap, iniciativa e relatórios.
 
-## ✨ Recursos
+## Recursos
 
-- 🤖 Mestre Arcano com IA
-- 📜 Fichas de personagem
-- 💀 Bestiário e blocos de estatísticas
-- 🎲 Rolagem de dados e macros
-- 🗺️ Battlemap/VTT e iniciativa
-- 👥 Campanhas e NPCs
-- 📚 Base de conhecimento personalizada
-- 🖼️ Biblioteca de mídia
-- 📊 Relatórios
-- 💾 Persistência local
-- 🛡️ Error Boundary
-- 🔐 Migração automática de credenciais antigas que remove senhas em texto puro do `localStorage`
-- 🧮 Parser matemático próprio para macros, sem `eval`/`new Function`
-- ⏱️ Persistência com debounce disponível para evitar serializações a cada tecla
-- 🧱 Guardas de quota para reduzir falhas silenciosas de `localStorage`
-- 🛡️ Primitivas de autorização server-side e hash de senha para a futura autenticação real
+- Mestre Arcano com Gemini e fallback local identificado como baixa confiança;
+- fichas de personagem, bestiário, macros e rolagem de dados;
+- campanhas, NPCs, battlemap/VTT e iniciativa;
+- base de conhecimento personalizada com recuperação apenas dos trechos relevantes;
+- biblioteca de mídia persistida como dados binários no IndexedDB;
+- armazenamento local versionado, validado, limitado e gravado com debounce;
+- backup/restauração local e Error Boundary;
+- interface responsiva com diálogos acessíveis e módulos carregados sob demanda.
 
-## 🧰 Stack
+## Desenvolvimento
 
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS
-- Express
-- Google Gemini SDK
-- Lucide React
-- Motion
-
-## 🚀 Desenvolvimento
+Requer Node.js 22.13 ou mais recente.
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
-## 📦 Build de produção
+Validação completa:
 
 ```bash
+npm run lint
+npm run typecheck
+npm test
 npm run build
-npm start
 ```
 
-## 🔐 Segurança
+O workflow em `.github/workflows/ci.yml` executa as mesmas verificações em todo pull request para `main`.
 
-O modo atual ainda é uma aplicação local/demo. `localStorage` **não é uma fronteira de segurança** e permissões administrativas reais precisam ser verificadas no servidor.
+## Configuração do servidor
 
-Para uma implantação real, configure `ADMIN_USER_IDS` no servidor e use uma solução de autenticação com sessão/token seguro. Nunca confie em `email`, `role` ou `isAdmin` enviados pelo navegador.
+Copie `.env.example` para `.env` e configure apenas no ambiente do servidor. Nunca use uma variável `VITE_*` para chaves ou credenciais.
 
-As credenciais da IA devem permanecer no servidor. Nunca coloque chaves secretas em componentes React ou em variáveis `VITE_*`.
+| Variável | Finalidade |
+| --- | --- |
+| `GEMINI_API_KEY` | Chave da API Gemini, usada exclusivamente pelo servidor |
+| `SESSION_SECRET` | Segredo aleatório de pelo menos 32 caracteres para assinar sessões |
+| `ADMIN_USER_ID` | ID canônico do administrador configurado |
+| `ADMIN_USER_IDS` | Lista separada por vírgulas de IDs autorizados; deve conter `ADMIN_USER_ID` |
+| `ADMIN_EMAIL` | E-mail de login administrativo |
+| `ADMIN_PASSWORD_HASH` | Hash `scrypt:<salt>:<hash>` gerado pela função server-side `hashPassword` |
+| `ADMIN_DISPLAY_NAME` | Nome público opcional do administrador |
 
-## 💾 Persistência
+## Segurança e autenticação
 
-A aplicação possui armazenamento local para o modo offline. Imagens grandes em Base64 podem exceder os limites do navegador; para produção, a biblioteca de mídia deve migrar para object storage (S3/R2/Supabase Storage, por exemplo) e guardar apenas URLs/IDs no banco.
+- perfis locais são um recurso de demonstração e não possuem senha;
+- senhas e flags administrativas antigas são removidas automaticamente do `localStorage`;
+- acesso administrativo depende de allowlist e validação server-side, nunca de prefixo de e-mail ou `role` enviado pelo navegador;
+- a sessão administrativa usa cookie assinado, `HttpOnly`, `SameSite=Strict` e `Secure` em produção;
+- login e consultas de IA têm limites básicos por IP; em produção, complemente-os no proxy/gateway compartilhado;
+- a API restringe tamanho de corpo e histórico, valida origem em mutações e envia cabeçalhos de segurança;
+- o parser de macros aceita somente a gramática aritmética prevista e não usa `eval` ou `new Function`.
 
-## 🌐 Multiplayer
+O modo local não substitui um provedor de identidade. Para múltiplos usuários reais, use autenticação, banco, autorização por recurso e trilha de auditoria no backend.
 
-O módulo de campanha/VTT local não é multiplayer real entre navegadores enquanto o estado permanecer no `localStorage`. Para sessões entre máquinas diferentes, é necessário um backend com sincronização (WebSocket, Supabase Realtime, Firebase ou equivalente).
+## Persistência
 
-## 🤖 IA e modelos
+Estados pequenos usam chaves `v2` do `localStorage`, gravação com debounce e guardas de quota. Falhas deixam de ser ignoradas silenciosamente e geram aviso na interface.
 
-Os identificadores de modelos devem ser mantidos atualizados conforme a documentação oficial do Gemini. Evite nomes inventados ou modelos preview já descontinuados.
+Imagens e miniaturas são armazenadas como `Blob` no IndexedDB. Na primeira abertura, a aplicação migra a biblioteca Base64 legada e só remove a chave antiga após uma gravação bem-sucedida. Para uso multiusuário ou grandes acervos, use object storage e mantenha no banco apenas IDs e metadados.
 
-## 🗺️ Próximas melhorias
+Campanhas e VTT continuam locais: dois navegadores não compartilham estado. Multiplayer real requer backend, WebSocket/realtime e controle de acesso por campanha.
 
-- [ ] Integrar autenticação server-side ao fluxo de login
-- [ ] Migrar campanhas/VTT para banco + realtime
-- [ ] Migrar imagens para object storage
-- [ ] Integrar busca semântica/embeddings para RAG
-- [ ] Extrair `App.tsx` em hooks e módulos de domínio
-- [ ] Unificar completamente os IDs de sistema em todos os modelos legados
-- [ ] Virtualização de listas grandes
-- [ ] Modais acessíveis para substituir `alert`/`confirm`
-- [ ] Auditoria de conteúdo/licenças do bestiário
-- [ ] Testes automatizados para regras e macros
+## IA e base de conhecimento
 
-## 📄 Licença
+O servidor tenta os modelos estáveis `gemini-3.7-flash`, `gemini-3.6-flash` e `gemini-3.1-flash-lite`, em ordem. A seleção de contexto pontua título, palavras-chave, conteúdo e sistema ativo, limita quantidade/tamanho e trata notas do usuário como dados não confiáveis, não como instruções.
 
-Defina aqui a licença do projeto antes de distribuir publicamente.
+Respostas offline, falhas de todos os modelos ou conteúdo sem fonte são explicitamente rebaixados para baixa confiança. O fallback embutido é apenas um índice resumido de material aberto/original; não reproduz capítulos ou blocos proprietários.
+
+## Conteúdo e licenças
+
+O projeto é uma ferramenta não oficial. Marcas são usadas somente para indicar compatibilidade. Conteúdo padrão deve ser original ou ter licença/proveniência documentada; importações do usuário permanecem sob responsabilidade de quem as fornece.
+
+Consulte [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) e [CONTENT_POLICY.md](./CONTENT_POLICY.md) antes de adicionar regras, imagens ou blocos de estatísticas.
+
+## Próximas etapas
+
+- backend persistente e sincronização realtime para campanhas;
+- object storage para bibliotecas compartilhadas;
+- busca vetorial/embeddings para acervos grandes;
+- testes end-to-end de autenticação, IndexedDB e fluxos do VTT;
+- divisão adicional do estado de `App.tsx` em contextos por domínio;
+- auditoria contínua de acessibilidade e proveniência do conteúdo.
+
+## Licença
+
+A licença do código ainda deve ser escolhida pelo mantenedor antes de redistribuição ampla. Conteúdo e marcas de terceiros seguem seus próprios termos.

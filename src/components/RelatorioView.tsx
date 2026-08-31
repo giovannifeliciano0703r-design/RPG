@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { STORAGE_KEYS } from "../constants/storageKeys";
 import {
   ScrollText,
   Printer,
@@ -47,18 +48,18 @@ export const RelatorioView: React.FC = () => {
     // Read directly from browser's localStorage as requested
     try {
       const stored =
-        localStorage.getItem("relatorio_data") ||
-        localStorage.getItem("mestre_arcano_relatorio");
+        localStorage.getItem(STORAGE_KEYS.reportData) ||
+        localStorage.getItem(STORAGE_KEYS.report);
 
       if (stored) {
         const parsed = JSON.parse(stored);
         setData(parsed);
       } else {
         // Fallback demo data if opened directly without prior generation
-        const backupChat = localStorage.getItem("mestre_arcano_chat_history");
-        const backupGrimoire = localStorage.getItem("mestre_arcano_grimoire");
-        const backupSystem = localStorage.getItem("mestre_arcano_system");
-        const backupUser = localStorage.getItem("mestre_arcano_current_user");
+        const backupChat = localStorage.getItem(STORAGE_KEYS.chatHistory);
+        const backupGrimoire = localStorage.getItem(STORAGE_KEYS.grimoire);
+        const backupSystem = localStorage.getItem(STORAGE_KEYS.system);
+        const backupUser = localStorage.getItem(STORAGE_KEYS.currentUser);
 
         const userObj = backupUser ? JSON.parse(backupUser) : null;
         const messagesObj = backupChat ? JSON.parse(backupChat) : [];

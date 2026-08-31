@@ -191,7 +191,7 @@ export const SystemSelectorModal: React.FC<SystemSelectorModalProps> = ({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div role="dialog" aria-modal="true" aria-label="Selecionar sistema de RPG" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-[#171510] border border-[#38352A] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-[#38352A] bg-[#1D1B14] flex items-center justify-between">
@@ -210,6 +210,7 @@ export const SystemSelectorModal: React.FC<SystemSelectorModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar seleção de sistema"
             className="p-1.5 text-[#8A8270] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-lg transition-colors cursor-pointer"
             title="Fechar"
           >

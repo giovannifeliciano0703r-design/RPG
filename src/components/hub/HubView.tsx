@@ -559,7 +559,7 @@ export const HubView: React.FC<HubViewProps> = ({
               </div>
             </div>
 
-            {/* 9. Campanhas Multiplayer */}
+            {/* 9. Campanhas locais */}
             <div
               onClick={onOpenCampaignManager}
               className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
@@ -569,7 +569,7 @@ export const HubView: React.FC<HubViewProps> = ({
                   <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-[10px] font-mono bg-[#15140F] text-[#DFB56C] px-2 py-0.5 rounded border border-[#38352A]">
-                  Multiplayer
+                  Local
                 </span>
               </div>
               <div>
@@ -584,6 +584,7 @@ export const HubView: React.FC<HubViewProps> = ({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

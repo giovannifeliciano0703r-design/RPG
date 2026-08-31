@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useDeferredValue, useMemo, useState } from "react";
 import {
   X,
   Database,
@@ -21,6 +21,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { KnowledgeEntry, KnowledgeCategory, RpgSystem } from "../types";
+import { ConfirmDialog } from "./ui/Dialog";
 
 interface KnowledgeBaseModalProps {
   isOpen: boolean;
@@ -130,7 +131,7 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
   onExportJSON,
   onImportJSON,
   onAskAboutEntry,
-  isAdmin = true,
+  isAdmin = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
@@ -147,12 +148,34 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
   const [importText, setImportText] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
+  const filteredEntries = useMemo(() => {
+    const term = deferredSearchTerm.toLowerCase();
+    return entries.filter((entry) => {
+      const matchesCat = selectedCategory === "Todas" || entry.category === selectedCategory;
+      const matchesSearch =
+        !term ||
+        entry.title.toLowerCase().includes(term) ||
+        entry.content.toLowerCase().includes(term) ||
+        entry.system.toLowerCase().includes(term) ||
+        entry.keywords.some((keyword) => keyword.toLowerCase().includes(term));
+      return matchesCat && matchesSearch;
+    });
+  }, [deferredSearchTerm, entries, selectedCategory]);
+  const activeEntryCount = useMemo(() => entries.filter((entry) => entry.isActive).length, [entries]);
 
   if (!isOpen) return null;
 
   if (!isAdmin) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+      <div role="dialog" aria-modal="true" aria-label="Acesso restrito" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
         <div className="bg-[#15140F] border border-[#7A2E27] rounded-2xl w-full max-w-md p-6 shadow-2xl text-center space-y-4">
           <div className="w-12 h-12 rounded-xl bg-[#7A2E27]/30 border border-[#7A2E27] flex items-center justify-center text-[#C4645A] mx-auto">
             <Lock className="w-6 h-6" />
@@ -173,18 +196,6 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
       </div>
     );
   }
-
-  const filteredEntries = entries.filter((entry) => {
-    const matchesCat = selectedCategory === "Todas" || entry.category === selectedCategory;
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      !term ||
-      entry.title.toLowerCase().includes(term) ||
-      entry.content.toLowerCase().includes(term) ||
-      entry.system.toLowerCase().includes(term) ||
-      entry.keywords.some((k) => k.toLowerCase().includes(term));
-    return matchesCat && matchesSearch;
-  });
 
   const handleStartCreate = () => {
     setEditingId(null);
@@ -261,7 +272,7 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Base de conhecimento" className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="bg-[#15140F] border-t sm:border border-[#38352A] rounded-t-3xl sm:rounded-2xl w-full sm:max-w-4xl h-[95vh] sm:h-auto sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Mobile drag handle */}
         <div className="sm:hidden w-12 h-1.5 bg-[#38352A] rounded-full mx-auto mt-3 mb-1" />
@@ -279,7 +290,7 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
                   <Crown className="w-3 h-3" /> ADM
                 </span>
                 <span className="text-[10px] sm:text-xs font-mono font-normal px-1.5 sm:px-2 py-0.5 bg-[#25231B] border border-[#38352A] rounded-full text-[#8DAE8F]">
-                  {entries.filter((e) => e.isActive).length} ativas
+                  {activeEntryCount} ativas
                 </span>
               </h2>
               <p className="text-[11px] sm:text-xs text-[#A79C82] line-clamp-1 sm:line-clamp-none">
@@ -290,6 +301,8 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
 
           <button
             onClick={onClose}
+            aria-label="Fechar base de conhecimento"
+            title="Fechar"
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] active:scale-95 rounded-lg transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center"
           >
             <X className="w-5 h-5" />
@@ -560,7 +573,7 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
                   {filteredEntries.map((entry) => (
                     <div
                       key={entry.id}
-                      className={`bg-[#1D1B14] border transition-all rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                      className={`content-auto-list-item bg-[#1D1B14] border transition-all rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
                         entry.isActive ? "border-[#38352A] hover:border-[#DFB56C]/60" : "border-[#25231B] opacity-60"
                       }`}
                     >
@@ -608,6 +621,7 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
                         <button
                           onClick={() => onToggleEntry(entry.id)}
                           title={entry.isActive ? "Desativar regra no oráculo" : "Ativar regra no oráculo"}
+                          aria-label={entry.isActive ? `Desativar ${entry.title}` : `Ativar ${entry.title}`}
                           className={`p-1.5 rounded-lg border transition-colors ${
                             entry.isActive
                               ? "bg-[#4B6B4E]/20 text-[#8DAE8F] border-[#4B6B4E]"
@@ -620,18 +634,21 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
                         <button
                           onClick={() => handleStartEdit(entry)}
                           title="Editar regra"
+                          aria-label={`Editar ${entry.title}`}
                           className="p-1.5 bg-[#25231B] hover:bg-[#38352A] text-[#EFE8D8] rounded-lg transition-colors"
                         >
                           <Edit3 className="w-4 h-4" />
                         </button>
 
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Tem certeza que deseja excluir "${entry.title}"?`)) {
-                              onDeleteEntry(entry.id);
-                            }
-                          }}
+                          onClick={() => setPendingAction({
+                            title: "Excluir regra?",
+                            description: `“${entry.title}” será removida permanentemente da base local.`,
+                            confirmLabel: "Excluir regra",
+                            onConfirm: () => onDeleteEntry(entry.id),
+                          })}
                           title="Excluir regra"
+                          aria-label={`Excluir ${entry.title}`}
                           className="p-1.5 bg-[#7A2E27]/20 hover:bg-[#7A2E27] text-[#C4645A] hover:text-white rounded-lg transition-colors"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -670,11 +687,12 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
             </button>
 
             <button
-              onClick={() => {
-                if (window.confirm("Deseja restaurar as regras de exemplo do banco de dados?")) {
-                  onResetDefaults();
-                }
-              }}
+              onClick={() => setPendingAction({
+                title: "Restaurar regras de exemplo?",
+                description: "As regras personalizadas atuais serão substituídas pelo conjunto de demonstração.",
+                confirmLabel: "Restaurar padrões",
+                onConfirm: onResetDefaults,
+              })}
               className="px-2.5 py-1.5 bg-[#15140F] hover:bg-[#25231B] border border-[#38352A] text-[#A79C82] hover:text-[#EFE8D8] rounded text-xs flex items-center gap-1.5 transition-colors"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -682,6 +700,15 @@ export const KnowledgeBaseModal: React.FC<KnowledgeBaseModalProps> = ({
             </button>
           </div>
         </div>
+        <ConfirmDialog
+          isOpen={pendingAction !== null}
+          title={pendingAction?.title || "Confirmar ação"}
+          description={pendingAction?.description || ""}
+          confirmLabel={pendingAction?.confirmLabel}
+          destructive
+          onConfirm={() => pendingAction?.onConfirm()}
+          onClose={() => setPendingAction(null)}
+        />
       </div>
     </div>
   );

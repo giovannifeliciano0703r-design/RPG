@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Send,
   Dice5,
@@ -52,7 +52,10 @@ export const CampaignDualChat: React.FC<CampaignDualChatProps> = ({
   const [inputText, setInputText] = useState("");
   const [showDicePicker, setShowDicePicker] = useState(false);
 
-  const filteredMessages = messages.filter((m) => m.channel === activeChannel);
+  const filteredMessages = useMemo(
+    () => messages.filter((message) => message.channel === activeChannel).slice(-250),
+    [activeChannel, messages],
+  );
 
   const handleSend = () => {
     if (!inputText.trim()) return;

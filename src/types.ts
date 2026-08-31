@@ -1,15 +1,6 @@
-export type RpgSystem =
-  | "Dungeons & Dragons (D&D)"
-  | "Pathfinder"
-  | "Tormenta20 (T20)"
-  | "Vampiro: A Máscara (Storyteller)"
-  | "Call of Cthulhu"
-  | "GURPS"
-  | "Savage Worlds"
-  | "Fate Core"
-  | "Cyberpunk Red"
-  | "Old Dragon"
-  | "Outro / não especificar";
+import type { RpgSystem } from "./domain/rpgSystems";
+
+export type { RpgSystem } from "./domain/rpgSystems";
 
 export type ConfidenceLevel = "Alta" | "Média" | "Baixa";
 
@@ -123,20 +114,18 @@ export interface UserProfile {
   createdAt: number;
   isGuest?: boolean;
   isAdmin?: boolean;
+  authorization?: {
+    source: "server";
+    permissions: readonly ["knowledge:manage"];
+  };
 }
 
 export const isUserAdmin = (user: UserProfile | null | undefined): boolean => {
-  if (!user) return false;
-  if (user.isGuest) return false;
-  if (user.isAdmin === true) return true;
-  if (user.role === "Administrador (ADM)") return true;
-  const emailLower = (user.email || "").toLowerCase().trim();
-  return (
-    emailLower === "adm@mestrearcano.rpg" ||
-    emailLower === "admin@mestrearcano.rpg" ||
-    emailLower === "admin@arcano.rpg" ||
-    emailLower.startsWith("adm@") ||
-    emailLower.startsWith("admin@")
+  return Boolean(
+    user &&
+      !user.isGuest &&
+      user.authorization?.source === "server" &&
+      user.authorization.permissions.includes("knowledge:manage"),
   );
 };
 
@@ -224,7 +213,7 @@ export interface CharacterSheet {
   ownerId: string;
   ownerName: string;
   name: string;
-  system: "D&D 5e" | "Tormenta20" | "Pathfinder" | "Genérico";
+  system: RpgSystem;
   race: string;
   characterClass: string;
   subclass?: string;
@@ -415,6 +404,8 @@ export interface MonsterStatBlock {
   tokenUrl?: string;
   isCustom?: boolean;
   notes?: string;
+  provenance?: "open-reference" | "original-homebrew" | "user-created";
+  sourceAttribution?: string;
 }
 
 // ==========================================
@@ -462,8 +453,8 @@ export interface MediaAsset {
   userId: string;
   name: string;
   album: MediaAlbumType;
-  originalUrl: string; // High-res image data URL or URL
-  thumbnailUrl: string; // Compressed mini data URL for quick rendering
+  originalUrl: string; // Runtime blob URL, HTTPS URL, or a data URL awaiting persistence
+  thumbnailUrl: string; // Runtime thumbnail URL; binary data is persisted in IndexedDB
   fileSizeBytes: number;
   dimensions: { width: number; height: number };
   mimeType: string;
@@ -511,7 +502,7 @@ export interface NpcEntry {
 }
 
 // ==========================================
-// 7. MULTIPLAYER CAMPAIGNS & DUAL CHAT
+// 7. LOCAL CAMPAIGNS & DUAL CHAT
 // ==========================================
 export type CampaignRole = "GM" | "CO_GM" | "PLAYER" | "SPECTATOR";
 

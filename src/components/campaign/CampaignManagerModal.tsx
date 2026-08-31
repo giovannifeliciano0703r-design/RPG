@@ -14,6 +14,7 @@ import {
   Flame,
 } from "lucide-react";
 import { Campaign, CampaignMember, CampaignRole, CoGmPermissions, UserProfile } from "../../types";
+import { NoticeDialog } from "../ui/Dialog";
 
 interface CampaignManagerModalProps {
   isOpen: boolean;
@@ -39,6 +40,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [selectedMemberForPerms, setSelectedMemberForPerms] = useState<CampaignMember | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -101,14 +103,20 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       }
       setJoinCodeInput("");
     } else {
-      alert("Código de campanha não encontrado!");
+      setNotice({
+        title: "Campanha não encontrada",
+        description: "Confira o código de convite e tente novamente.",
+      });
     }
   };
 
   const handleUpdateMemberRole = (campaign: Campaign, targetUserId: string, newRole: CampaignRole) => {
     // Strict security rule: No one can demote the original GM
     if (targetUserId === campaign.gmUserId && newRole !== "GM") {
-      alert("O Mestre Criador da Campanha não pode ter seu papel alterado.");
+      setNotice({
+        title: "Papel protegido",
+        description: "O Mestre criador da campanha não pode ter seu papel alterado.",
+      });
       return;
     }
 
@@ -164,7 +172,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
+    <div role="dialog" aria-modal="true" aria-label="Gerenciador de campanhas" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-[#1C1A14] border-b border-[#38352A] flex items-center justify-between">
@@ -174,7 +182,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-serif font-bold text-[#EFE8D8] flex items-center gap-2">
-                <span>Campanhas Multiplayer & Permissões</span>
+                <span>Campanhas locais & Permissões</span>
                 {activeCampaign && (
                   <span className="text-xs font-mono text-[#DFB56C] bg-[#DFB56C]/10 border border-[#DFB56C]/30 px-2 py-0.5 rounded">
                     Ativa: {activeCampaign.name}
@@ -188,6 +196,8 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar gerenciador de campanhas"
+            title="Fechar"
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-xl transition-colors"
           >
             <X className="w-5 h-5" />
@@ -422,6 +432,12 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
           </div>
         </div>
       </div>
+      <NoticeDialog
+        isOpen={notice !== null}
+        title={notice?.title || "Aviso"}
+        description={notice?.description || ""}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 };

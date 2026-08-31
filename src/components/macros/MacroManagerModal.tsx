@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   X,
   Zap,
@@ -41,14 +41,13 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
   const [editingMacro, setEditingMacro] = useState<Macro | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const categories: MacroCategory[] = ["Ataques", "Magias", "Perícias", "Itens", "Utilidades"];
+  const filteredMacros = useMemo(
+    () => macros.filter((macro) => selectedCategory === "all" || macro.category === selectedCategory),
+    [macros, selectedCategory],
+  );
 
-  const filteredMacros = macros.filter((m) => {
-    if (selectedCategory === "all") return true;
-    return m.category === selectedCategory;
-  });
+  if (!isOpen) return null;
 
   const handleCreateNew = () => {
     const newM: Macro = {
@@ -93,7 +92,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
+    <div role="dialog" aria-modal="true" aria-label="Gerenciador de macros" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-[#1C1A14] border-b border-[#38352A] flex items-center justify-between">
@@ -117,6 +116,8 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="Fechar gerenciador de macros"
+            title="Fechar"
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-xl transition-colors"
           >
             <X className="w-5 h-5" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   X,
   Shield,
@@ -121,9 +121,25 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
     setData({ ...sheet });
   }, [sheet]);
 
-  if (!isOpen) return null;
+  const derived = useMemo(() => calculateDerivedStats(data), [data]);
+  const filteredEquip = useMemo(
+    () => (data.inventory || []).filter((item) => item.name.toLowerCase().includes(inventorySearch.toLowerCase())),
+    [data.inventory, inventorySearch],
+  );
+  const filteredDiverse = useMemo(
+    () => (data.diverseItems || []).filter((item) => item.name.toLowerCase().includes(diverseSearch.toLowerCase())),
+    [data.diverseItems, diverseSearch],
+  );
+  const filteredFeatures = useMemo(
+    () => (data.featuresList || []).filter((feature) => feature.name.toLowerCase().includes(featuresSearch.toLowerCase())),
+    [data.featuresList, featuresSearch],
+  );
+  const filteredSpells = useMemo(
+    () => (data.spells || []).filter((spell) => spell.name.toLowerCase().includes(spellsSearch.toLowerCase())),
+    [data.spells, spellsSearch],
+  );
 
-  const derived = calculateDerivedStats(data);
+  if (!isOpen) return null;
 
   const updateField = <K extends keyof CharacterSheet>(key: K, value: CharacterSheet[K]) => {
     const updated = { ...data, [key]: value, updatedAt: Date.now() };
@@ -266,22 +282,8 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
     setShowAddSpell(false);
   };
 
-  // Filtered lists
-  const filteredEquip = (data.inventory || []).filter((item) =>
-    item.name.toLowerCase().includes(inventorySearch.toLowerCase())
-  );
-  const filteredDiverse = (data.diverseItems || []).filter((item) =>
-    item.name.toLowerCase().includes(diverseSearch.toLowerCase())
-  );
-  const filteredFeatures = (data.featuresList || []).filter((feat) =>
-    feat.name.toLowerCase().includes(featuresSearch.toLowerCase())
-  );
-  const filteredSpells = (data.spells || []).filter((sp) =>
-    sp.name.toLowerCase().includes(spellsSearch.toLowerCase())
-  );
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+    <div role="dialog" aria-modal="true" aria-label="Ficha de personagem" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-[#15140F] border-2 border-[#38352A] rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden relative text-[#EFE8D8]">
         
         {/* Top Header */}
@@ -296,6 +298,8 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
           {/* Quick Close Button */}
           <button
             onClick={onClose}
+            aria-label="Fechar ficha"
+            title="Fechar ficha"
             className="absolute top-3 right-3 p-1.5 text-[#A79C82] hover:text-[#EFE8D8] bg-[#15140F] hover:bg-[#232018] border border-[#38352A] rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -1445,6 +1449,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
           {/* Right: Close Button */}
           <button
             onClick={onClose}
+            aria-label="Fechar ficha"
             className="p-2.5 bg-[#15140F] border border-[#38352A] hover:border-[#C4645A] text-[#A79C82] hover:text-[#C4645A] rounded-2xl transition-colors cursor-pointer shadow-md"
             title="Fechar Ficha"
           >

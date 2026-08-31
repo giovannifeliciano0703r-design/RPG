@@ -19,6 +19,9 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
   return (
     <div
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title ? `Imagem: ${title}` : "Visualização de imagem"}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 cursor-zoom-out"
     >
       <div
@@ -38,6 +41,7 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
           </a>
           <button
             onClick={onClose}
+            aria-label="Fechar imagem"
             className="p-1.5 text-[#A79C82] hover:text-[#EFE8D8] transition-colors"
             title="Fechar"
           >

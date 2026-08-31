@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   X,
   Upload,
@@ -25,6 +25,8 @@ interface MediaLibraryModalProps {
   onViewHdImage?: (url: string, name: string) => void;
 }
 
+const MEDIA_ALBUMS: MediaAlbumType[] = ["Tokens", "Retratos", "Mapas & Cenários", "Handouts", "Geral"];
+
 export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   isOpen,
   onClose,
@@ -38,18 +40,22 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  const albums: MediaAlbumType[] = ["Tokens", "Retratos", "Mapas & Cenários", "Handouts", "Geral"];
-
-  const filteredAssets = assets.filter((a) => {
-    if (activeAlbum === "all") return true;
-    return a.album === activeAlbum;
-  });
-
-  const totalBytesUsed = assets.reduce((acc, a) => acc + (a.fileSizeBytes || 0), 0);
-  const maxQuotaBytes = 25 * 1024 * 1024; // 25 MB soft limit
+  const filteredAssets = useMemo(
+    () => assets.filter((asset) => activeAlbum === "all" || asset.album === activeAlbum),
+    [activeAlbum, assets],
+  );
+  const albumCounts = useMemo(
+    () => new Map(MEDIA_ALBUMS.map((album) => [album, assets.filter((asset) => asset.album === album).length])),
+    [assets],
+  );
+  const totalBytesUsed = useMemo(
+    () => assets.reduce((total, asset) => total + (asset.fileSizeBytes || 0), 0),
+    [assets],
+  );
+  const maxQuotaBytes = 100 * 1024 * 1024;
   const percentUsed = Math.min(100, (totalBytesUsed / maxQuotaBytes) * 100);
+
+  if (!isOpen) return null;
 
   const handleFileUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -102,7 +108,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
+    <div role="dialog" aria-modal="true" aria-label="Biblioteca de mídia" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="p-4 bg-[#1C1A14] border-b border-[#38352A] flex items-center justify-between">
@@ -125,6 +131,8 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 text-[#A79C82] hover:text-[#EFE8D8] hover:bg-[#25231B] rounded-xl transition-colors"
+            aria-label="Fechar biblioteca de mídia"
+            title="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
@@ -154,8 +162,8 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 <span className="text-[10px] font-mono">{assets.length}</span>
               </button>
 
-              {albums.map((alb) => {
-                const count = assets.filter((a) => a.album === alb).length;
+              {MEDIA_ALBUMS.map((alb) => {
+                const count = albumCounts.get(alb) ?? 0;
                 return (
                   <button
                     key={alb}
@@ -182,7 +190,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 <span className="flex items-center gap-1">
                   <HardDrive className="w-3 h-3" /> Armazenamento
                 </span>
-                <span>{formatFileSize(totalBytesUsed)} / 25 MB</span>
+                <span>{formatFileSize(totalBytesUsed)} / 100 MB</span>
               </div>
               <div className="w-full bg-[#15140F] h-1.5 rounded-full overflow-hidden border border-[#38352A]">
                 <div
@@ -204,6 +212,7 @@ export const MediaLibraryModal: React.FC<MediaLibraryModalProps> = ({
                 onChange={(e) => handleFileUpload(e.target.files)}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                 disabled={isProcessing}
+                aria-label="Adicionar imagens à biblioteca"
               />
               <div className="flex flex-col items-center justify-center gap-1 text-[#A79C82]">
                 <Upload className="w-6 h-6 text-[#DFB56C] animate-pulse" />
