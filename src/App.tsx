@@ -728,6 +728,23 @@ export default function App() {
               }
               setIsCharacterSheetOpen(true);
             }}
+            onDeleteCharacter={(character) => {
+              setPendingConfirmation({
+                title: "Excluir ficha de personagem?",
+                description: `A ficha de ${character.name} será excluída permanentemente deste navegador. Esta ação não pode ser desfeita.`,
+                confirmLabel: "Excluir ficha",
+                onConfirm: () => {
+                  setCharacters((previous) => {
+                    const remaining = previous.filter((item) => item.id !== character.id);
+                    setActiveCharacter((current) => current?.id === character.id ? remaining[0] || null : current);
+                    setEditingCharacter((current) => current?.id === character.id ? null : current);
+                    return remaining;
+                  });
+                  if (editingCharacter?.id === character.id) setIsCharacterSheetOpen(false);
+                  setPendingConfirmation(null);
+                },
+              });
+            }}
             onOpenBestiary={() => setIsBestiaryOpen(true)}
             onOpenMacroManager={() => setIsMacroOpen(true)}
             onOpenMediaLibrary={() => setIsMediaOpen(true)}

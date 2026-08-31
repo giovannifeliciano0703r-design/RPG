@@ -19,6 +19,7 @@ import {
   Heart,
   Menu,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import {
   UserProfile,
@@ -34,6 +35,7 @@ interface HubViewProps {
   onNavigateView: (view: "vtt" | "hub") => void;
   onToggleSidebar?: () => void;
   onOpenCharacterSheet: (character?: CharacterSheet) => void;
+  onDeleteCharacter: (character: CharacterSheet) => void;
   onOpenBestiary: () => void;
   onOpenMacroManager: () => void;
   onOpenMediaLibrary: () => void;
@@ -52,6 +54,7 @@ export const HubView: React.FC<HubViewProps> = ({
   onNavigateView,
   onToggleSidebar,
   onOpenCharacterSheet,
+  onDeleteCharacter,
   onOpenBestiary,
   onOpenMacroManager,
   onOpenMediaLibrary,
@@ -282,7 +285,7 @@ export const HubView: React.FC<HubViewProps> = ({
           </div>
         )}
 
-        {characters.length > 1 && (
+        {characters.length > 0 && (
           <section aria-labelledby="character-list-title" className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <h3 id="character-list-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">
@@ -294,31 +297,45 @@ export const HubView: React.FC<HubViewProps> = ({
               {characters.map((character) => {
                 const isActive = character.id === activeCharacter?.id;
                 return (
-                  <button
+                  <article
                     key={character.id}
-                    type="button"
-                    onClick={() => onOpenCharacterSheet(character)}
-                    aria-current={isActive ? "true" : undefined}
-                    className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
+                    className={`flex min-w-0 items-center rounded-xl border transition-colors ${
                       isActive
                         ? "border-[#DFB56C] bg-[#DFB56C]/10"
                         : "border-[#38352A] bg-[#1D1B14] hover:border-[#DFB56C]/70 hover:bg-[#232018]"
                     }`}
                   >
-                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#38352A] bg-[#15140F] flex items-center justify-center">
-                      {character.avatarUrl ? (
-                        <img src={character.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="font-serif font-bold text-[#DFB56C]">{character.name.slice(0, 2).toUpperCase()}</span>
-                      )}
-                    </div>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-[#EFE8D8]">{character.name}</span>
-                      <span className="block truncate text-[10px] font-mono text-[#A79C82]">
-                        Nível {character.level} • {character.characterClass}
+                    <button
+                      type="button"
+                      onClick={() => onOpenCharacterSheet(character)}
+                      aria-current={isActive ? "true" : undefined}
+                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left cursor-pointer"
+                      title={`Abrir ficha de ${character.name}`}
+                    >
+                      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#38352A] bg-[#15140F] flex items-center justify-center">
+                        {character.avatarUrl ? (
+                          <img src={character.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="font-serif font-bold text-[#DFB56C]">{character.name.slice(0, 2).toUpperCase()}</span>
+                        )}
                       </span>
-                    </span>
-                  </button>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-[#EFE8D8]">{character.name}</span>
+                        <span className="block truncate text-[10px] font-mono text-[#A79C82]">
+                          Nível {character.level} • {character.characterClass}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCharacter(character)}
+                      className="mr-2 rounded-lg border border-transparent p-2 text-[#A79C82] transition-colors hover:border-[#7A2E27] hover:bg-[#7A2E27]/20 hover:text-[#E07A70] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DFB56C] cursor-pointer"
+                      aria-label={`Excluir ficha de ${character.name}`}
+                      title={`Excluir ficha de ${character.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </article>
                 );
               })}
             </div>
