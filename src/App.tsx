@@ -867,6 +867,11 @@ export default function App() {
         <CharacterSheetModal
           isOpen
           sheet={editingCharacter}
+          characters={characters}
+          onSelectCharacter={(character) => {
+            setEditingCharacter(character);
+            setActiveCharacter(character);
+          }}
           onClose={() => setIsCharacterSheetOpen(false)}
           onSave={(updated) => {
             const list = characters.map((c) => (c.id === updated.id ? updated : c));

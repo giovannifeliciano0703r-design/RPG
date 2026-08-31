@@ -282,6 +282,49 @@ export const HubView: React.FC<HubViewProps> = ({
           </div>
         )}
 
+        {characters.length > 1 && (
+          <section aria-labelledby="character-list-title" className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <h3 id="character-list-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">
+                Minhas fichas ({characters.length})
+              </h3>
+              <span className="text-[10px] text-[#A79C82]">Selecione uma ficha para abrir</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {characters.map((character) => {
+                const isActive = character.id === activeCharacter?.id;
+                return (
+                  <button
+                    key={character.id}
+                    type="button"
+                    onClick={() => onOpenCharacterSheet(character)}
+                    aria-current={isActive ? "true" : undefined}
+                    className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
+                      isActive
+                        ? "border-[#DFB56C] bg-[#DFB56C]/10"
+                        : "border-[#38352A] bg-[#1D1B14] hover:border-[#DFB56C]/70 hover:bg-[#232018]"
+                    }`}
+                  >
+                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#38352A] bg-[#15140F] flex items-center justify-center">
+                      {character.avatarUrl ? (
+                        <img src={character.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="font-serif font-bold text-[#DFB56C]">{character.name.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-bold text-[#EFE8D8]">{character.name}</span>
+                      <span className="block truncate text-[10px] font-mono text-[#A79C82]">
+                        Nível {character.level} • {character.characterClass}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {/* Central Hub Grid: All Application Functions & Shortcuts */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
