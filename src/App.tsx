@@ -629,7 +629,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-                  <span>Campanha local</span>
+                  <span>Campanhas online</span>
                 </div>
                 <span className="text-[9px] font-mono text-[#DFB56C]">{campaigns.length}</span>
               </button>
@@ -809,7 +809,7 @@ export default function App() {
           />
         )}
 
-        {/* View Mode 1: VTT BATTLEMAP & LOCAL DUAL CHAT */}
+        {/* View Mode 1: VTT BATTLEMAP & ONLINE DUAL CHAT */}
         {activeView === "vtt" && (
           <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Interactive Battlemap with Initiative Bar */}
@@ -817,7 +817,7 @@ export default function App() {
               <div className="flex items-center justify-end gap-2 border-b border-[#38352A] bg-[#15140F] px-3 py-1 text-[10px] font-mono" role="status">
                 <span className={`h-2 w-2 rounded-full ${liveCampaign.status === "online" ? "bg-[#8DAE8F]" : liveCampaign.status === "error" ? "bg-[#C4645A]" : "bg-[#A79C82]"}`} />
                 <span className="text-[#A79C82]">
-                  {liveCampaign.status === "online" ? "Campanha sincronizada" : liveCampaign.status === "connecting" ? "Conectando campanha…" : liveCampaign.status === "error" ? "Modo local — falha ao sincronizar" : "Campanha local"}
+                  {liveCampaign.status === "online" ? "Campanha sincronizada" : liveCampaign.status === "connecting" ? "Conectando campanha…" : liveCampaign.status === "error" ? "Sincronização indisponível — tentando novamente" : "Selecione uma campanha online"}
                 </span>
               </div>
               {/* Initiative Turn Bar */}

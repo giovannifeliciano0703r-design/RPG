@@ -365,7 +365,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             <div className="space-y-1 text-xs">
               <p className="font-bold text-[#DFB56C]">Ficha Completa de Personagem</p>
               <p className="text-[#A79C82] text-[11px] leading-relaxed">
-                Você pode editar seus atributos, inventário, magias e rolagens diretamente. Todas as alterações são salvas localmente e sincronizadas com a Mesa VTT.
+                Você pode editar atributos, inventário, magias e rolagens diretamente. As alterações são sincronizadas com sua conta e com a Mesa VTT autorizada.
               </p>
             </div>
 
