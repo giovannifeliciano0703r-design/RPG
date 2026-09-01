@@ -162,12 +162,13 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                       : "bg-[#1C1A14] border-[#38352A] hover:border-[#DFB56C]/40"
                   }`}
                 >
-                  <div
+                  <button
+                    type="button"
                     onClick={() => {
                       setEditingMacro(m);
                       setTestResult(null);
                     }}
-                    className="flex-1 min-w-0 cursor-pointer"
+                    className="flex-1 min-w-0 cursor-pointer text-left"
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-bold text-[#EFE8D8] truncate">{m.name}</span>
@@ -176,7 +177,7 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                       )}
                     </div>
                     <p className="text-[10px] font-mono text-[#A79C82] truncate">{m.command.split("\n")[0]}</p>
-                  </div>
+                  </button>
 
                   <button
                     onClick={() => onExecuteMacro(m)}

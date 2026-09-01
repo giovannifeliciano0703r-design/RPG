@@ -238,13 +238,14 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
               {filteredNpcs.map((npc) => (
-                <div
+                <button
+                  type="button"
                   key={npc.id}
                   onClick={() => {
                     setSelectedNpc(npc);
                     setIsEditingNpc(false);
                   }}
-                  className={`p-2.5 rounded-xl border transition-colors cursor-pointer ${
+                  className={`w-full p-2.5 text-left rounded-xl border transition-colors cursor-pointer ${
                     selectedNpc?.id === npc.id
                       ? "bg-[#DFB56C]/15 border-[#DFB56C] text-[#EFE8D8]"
                       : "bg-[#1C1A14] border-[#38352A] text-[#A79C82] hover:border-[#DFB56C]/40 hover:text-[#EFE8D8]"
@@ -265,7 +266,7 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-[#A79C82] truncate">{npc.titleOrRole}</p>
-                </div>
+                </button>
               ))}
             </div>
           </div>

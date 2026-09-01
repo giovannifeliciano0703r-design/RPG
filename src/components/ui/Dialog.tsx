@@ -60,7 +60,8 @@ function DialogFrame({
   const Icon = tone === "warning" ? AlertTriangle : Info;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <button type="button" aria-label="Fechar diálogo" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -68,8 +69,7 @@ function DialogFrame({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        onMouseDown={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-[#5C5641] bg-[#1D1B14] p-5 text-[#EFE8D8] shadow-2xl outline-none"
+        className="relative w-full max-w-md rounded-2xl border border-[#5C5641] bg-[#1D1B14] p-5 text-[#EFE8D8] shadow-2xl outline-none"
       >
         <div className="flex gap-3">
           <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${tone === "warning" ? "text-[#C4645A]" : "text-[#DFB56C]"}`} />
