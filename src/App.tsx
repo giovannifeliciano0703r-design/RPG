@@ -496,7 +496,9 @@ export default function App() {
       )}
       {/* Mobile backdrop for sidebar */}
       {isSidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Fechar menu lateral"
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 md:hidden animate-in fade-in"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -688,6 +690,7 @@ export default function App() {
         <div className="p-3 border-t border-[#38352A] bg-[#15140F]/80 flex items-center gap-2">
           <button
             onClick={() => setIsProfileOpen(true)}
+            aria-label={`Abrir perfil de ${currentUser.name}`}
             className="flex-1 flex items-center justify-between p-2 rounded-xl bg-[#1D1B14] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C]/60 transition-all text-left group cursor-pointer min-w-0"
             title="Abrir Perfil"
           >
