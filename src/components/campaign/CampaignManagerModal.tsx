@@ -15,6 +15,12 @@ import {
 } from "lucide-react";
 import { Campaign, CampaignMember, CampaignRole, CoGmPermissions, UserProfile } from "../../types";
 import { NoticeDialog } from "../ui/Dialog";
+import {
+  createCampaignInvite,
+  createRemoteCampaign,
+  joinCampaignByInvite,
+  updateRemoteMemberAccess,
+} from "../../services/supabaseCampaigns";
 
 interface CampaignManagerModalProps {
   isOpen: boolean;
@@ -41,18 +47,40 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
+  const [isWorking, setIsWorking] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleCreateCampaign = () => {
-    if (!newCampaignName.trim()) return;
+  const showError = (title: string, cause: unknown) => setNotice({
+    title,
+    description: cause instanceof Error ? cause.message : "Não foi possível concluir. Tente novamente.",
+  });
 
-    const newCamp: Campaign = {
-      id: `camp-${Date.now()}`,
-      inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+  const saveUpdatedCampaign = (campaign: Campaign) => {
+    const exists = campaigns.some((item) => item.id === campaign.id);
+    onSaveCampaigns(exists ? campaigns.map((item) => item.id === campaign.id ? campaign : item) : [campaign, ...campaigns]);
+    onSelectCampaign(campaign);
+  };
+
+  const handleCreateCampaign = async () => {
+    if (!newCampaignName.trim()) return;
+    setIsWorking(true);
+    try {
+      const draft = {
+        name: newCampaignName.trim(),
+        description: newCampaignDesc.trim() || "Uma jornada épica pelo multiverso arcano.",
+        system: currentUser.favoriteSystem || "Dungeons & Dragons (D&D)",
+        isPrivate: false,
+      } as const;
+      const remoteId = await createRemoteCampaign(draft);
+      const inviteCode = await createCampaignInvite(remoteId);
+      const newCamp: Campaign = {
+      id: `remote-${remoteId}`,
+      remoteId,
+      inviteCode,
       name: newCampaignName.trim(),
-      description: newCampaignDesc.trim() || "Uma jornada épica pelo multiverso arcano.",
-      system: currentUser.favoriteSystem || "Dungeons & Dragons (D&D)",
+      description: draft.description,
+      system: draft.system,
       gmUserId: currentUser.id,
       gmUserName: currentUser.name,
       maxCharactersPerPlayer: 2,
@@ -72,45 +100,31 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       updatedAt: Date.now(),
     };
 
-    const updated = [newCamp, ...campaigns];
-    onSaveCampaigns(updated);
-    onSelectCampaign(newCamp);
-    setNewCampaignName("");
-    setNewCampaignDesc("");
-  };
-
-  const handleJoinByCode = () => {
-    if (!joinCodeInput.trim()) return;
-    const target = campaigns.find((c) => c.inviteCode.toLowerCase() === joinCodeInput.trim().toLowerCase());
-    if (target) {
-      // Add member if not already joined
-      const alreadyMember = target.members.some((m) => m.userId === currentUser.id);
-      if (!alreadyMember) {
-        const newMember: CampaignMember = {
-          userId: currentUser.id,
-          userName: currentUser.name,
-          userAvatar: currentUser.avatar || "Scroll",
-          role: "PLAYER",
-          assignedCharacterIds: [],
-          joinedAt: Date.now(),
-        };
-        const updatedTarget = { ...target, members: [...target.members, newMember] };
-        const updatedList = campaigns.map((c) => (c.id === target.id ? updatedTarget : c));
-        onSaveCampaigns(updatedList);
-        onSelectCampaign(updatedTarget);
-      } else {
-        onSelectCampaign(target);
-      }
-      setJoinCodeInput("");
-    } else {
-      setNotice({
-        title: "Campanha não encontrada",
-        description: "Confira o código de convite e tente novamente.",
-      });
+      saveUpdatedCampaign(newCamp);
+      setNewCampaignName("");
+      setNewCampaignDesc("");
+    } catch (cause) {
+      showError("Não foi possível criar a campanha", cause);
+    } finally {
+      setIsWorking(false);
     }
   };
 
-  const handleUpdateMemberRole = (campaign: Campaign, targetUserId: string, newRole: CampaignRole) => {
+  const handleJoinByCode = async () => {
+    if (!joinCodeInput.trim()) return;
+    setIsWorking(true);
+    try {
+      const target = await joinCampaignByInvite(joinCodeInput);
+      saveUpdatedCampaign(target);
+      setJoinCodeInput("");
+    } catch (cause) {
+      showError("Campanha não encontrada", cause);
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleUpdateMemberRole = async (campaign: Campaign, targetUserId: string, newRole: CampaignRole) => {
     // Strict security rule: No one can demote the original GM
     if (targetUserId === campaign.gmUserId && newRole !== "GM") {
       setNotice({
@@ -141,12 +155,17 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       return m;
     });
 
-    const updatedCampaign = { ...campaign, members: updatedMembers, updatedAt: Date.now() };
-    const updatedList = campaigns.map((c) => (c.id === campaign.id ? updatedCampaign : c));
-    onSaveCampaigns(updatedList);
+    if (!campaign.remoteId) return showError("Campanha ainda não está online", new Error("Aguarde a sincronização e tente novamente."));
+    setIsWorking(true);
+    try {
+      const member = updatedMembers.find((item) => item.userId === targetUserId);
+      await updateRemoteMemberAccess(campaign.remoteId, targetUserId, newRole, member?.coGmPermissions);
+      saveUpdatedCampaign({ ...campaign, members: updatedMembers, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível alterar o papel", cause); }
+    finally { setIsWorking(false); }
   };
 
-  const handleToggleCoGmPerm = (
+  const handleToggleCoGmPerm = async (
     campaign: Campaign,
     targetUserId: string,
     permKey: keyof CoGmPermissions
@@ -164,9 +183,14 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       return m;
     });
 
-    const updatedCampaign = { ...campaign, members: updatedMembers, updatedAt: Date.now() };
-    const updatedList = campaigns.map((c) => (c.id === campaign.id ? updatedCampaign : c));
-    onSaveCampaigns(updatedList);
+    if (!campaign.remoteId) return;
+    const member = updatedMembers.find((item) => item.userId === targetUserId);
+    setIsWorking(true);
+    try {
+      await updateRemoteMemberAccess(campaign.remoteId, targetUserId, "CO_GM", member?.coGmPermissions);
+      saveUpdatedCampaign({ ...campaign, members: updatedMembers, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível alterar a permissão", cause); }
+    finally { setIsWorking(false); }
   };
 
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
@@ -182,7 +206,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-serif font-bold text-[#EFE8D8] flex items-center gap-2">
-                <span>Campanhas locais & Permissões</span>
+                <span>Campanhas online & Permissões</span>
                 {activeCampaign && (
                   <span className="text-xs font-mono text-[#DFB56C] bg-[#DFB56C]/10 border border-[#DFB56C]/30 px-2 py-0.5 rounded">
                     Ativa: {activeCampaign.name}
@@ -222,6 +246,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                   />
                   <button
                     onClick={handleJoinByCode}
+                    disabled={isWorking}
                     className="px-3 py-1 bg-[#DFB56C] text-[#15140F] font-bold text-xs rounded-lg hover:bg-[#b08635]"
                   >
                     Entrar
@@ -274,6 +299,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
               />
               <button
                 onClick={handleCreateCampaign}
+                disabled={isWorking || !newCampaignName.trim()}
                 className="w-full py-1.5 bg-[#DFB56C] text-[#15140F] font-bold text-xs rounded-lg hover:bg-[#b08635]"
               >
                 + Criar como Mestre (GM)
@@ -294,7 +320,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {isCurrentGm && activeCampaign.inviteCode && <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 bg-[#15140F] border border-[#38352A] px-3 py-1.5 rounded-xl text-xs font-mono">
                       <span className="text-[#A79C82]">Código:</span>
                       <strong className="text-[#DFB56C] tracking-widest">{activeCampaign.inviteCode}</strong>
@@ -310,7 +336,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                         {copiedCode ? <Check className="w-3.5 h-3.5 text-[#8DAE8F]" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Member Roster & Roles */}
@@ -356,6 +382,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                             <div className="flex items-center gap-2">
                               <select
                                 value={member.role}
+                                disabled={isWorking}
                                 onChange={(e) =>
                                   handleUpdateMemberRole(activeCampaign, member.userId, e.target.value as CampaignRole)
                                 }

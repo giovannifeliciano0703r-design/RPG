@@ -1,6 +1,75 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import type { Campaign } from "../types";
+import type { Campaign, CampaignMember, CampaignRole, CoGmPermissions, RpgSystem } from "../types";
+
+type RemoteCampaignRow = {
+  id: string; owner_id: string; name: string; description: string; system: string;
+  visibility: "private" | "invite_only"; created_at: string; updated_at: string;
+};
+
+type RemoteMemberRow = {
+  user_id: string; role: "player" | "gm" | "admin"; joined_at: string;
+  permissions: Record<string, boolean> | null;
+  profiles: { display_name: string; avatar_url: string | null } | null;
+};
+
+function mapRemoteMember(row: RemoteMemberRow, ownerId: string): CampaignMember {
+  const permissions = row.permissions ?? {};
+  const role: CampaignRole = row.user_id === ownerId
+    ? "GM"
+    : row.role === "gm" ? "CO_GM" : permissions.isSpectator ? "SPECTATOR" : "PLAYER";
+  return {
+    userId: row.user_id,
+    userName: row.profiles?.display_name || "Aventureiro",
+    userAvatar: row.profiles?.avatar_url || "Scroll",
+    role,
+    coGmPermissions: role === "CO_GM" ? permissions as unknown as CoGmPermissions : undefined,
+    assignedCharacterIds: [],
+    joinedAt: new Date(row.joined_at).getTime(),
+  };
+}
+
+export async function loadRemoteCampaign(campaignId: string, inviteCode = ""): Promise<Campaign> {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const [{ data: campaign, error: campaignError }, { data: members, error: membersError }] = await Promise.all([
+    supabase.from("campaigns").select("*").eq("id", campaignId).single(),
+    supabase.from("campaign_members").select("user_id,role,joined_at,permissions,profiles(display_name,avatar_url)").eq("campaign_id", campaignId),
+  ]);
+  if (campaignError) throw campaignError;
+  if (membersError) throw membersError;
+  const row = campaign as RemoteCampaignRow;
+  const mappedMembers = (members ?? []) as unknown as RemoteMemberRow[];
+  const owner = mappedMembers.find((member) => member.user_id === row.owner_id);
+  return {
+    id: `remote-${row.id}`, remoteId: row.id, inviteCode, name: row.name, description: row.description,
+    system: row.system as RpgSystem, gmUserId: row.owner_id,
+    gmUserName: owner?.profiles?.display_name || "Mestre", members: mappedMembers.map((member) => mapRemoteMember(member, row.owner_id)),
+    maxCharactersPerPlayer: 2, allowPlayerPvp: false, isPrivate: row.visibility === "private",
+    createdAt: new Date(row.created_at).getTime(), updatedAt: new Date(row.updated_at).getTime(),
+  };
+}
+
+export async function createCampaignInvite(campaignId: string) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { data, error } = await supabase.rpc("create_campaign_invite", { target_campaign: campaignId });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function joinCampaignByInvite(code: string) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { data, error } = await supabase.rpc("join_campaign_by_invite", { invite_code: code.trim().toUpperCase() });
+  if (error) throw error;
+  return loadRemoteCampaign(data as string);
+}
+
+export async function updateRemoteMemberAccess(campaignId: string, userId: string, role: CampaignRole, permissions?: CoGmPermissions) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { error } = await supabase.rpc("update_campaign_member_access", {
+    target_campaign: campaignId, target_user: userId, target_role: role, target_permissions: permissions ?? {},
+  });
+  if (error) throw error;
+}
 
 export type RemoteCampaignMessage = {
   id: string;
