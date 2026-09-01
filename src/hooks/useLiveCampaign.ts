@@ -10,6 +10,7 @@ import {
   subscribeToCampaignMessages,
   subscribeToCampaignState,
   type RemoteCampaignMessage,
+  CampaignStateConflictError,
 } from "../services/supabaseCampaigns";
 
 type Options = {
@@ -42,6 +43,7 @@ export function useLiveCampaign(options: Options) {
   const [status, setStatus] = useState<"offline" | "connecting" | "online" | "error">("offline");
   const [error, setError] = useState<string | null>(null);
   const applyingRemoteRef = useRef(false);
+  const revisionsRef = useRef<Record<string, number>>({ battlemap: 0, initiative: 0 });
   const remoteId = campaign?.remoteId;
 
   useEffect(() => {
@@ -71,8 +73,8 @@ export function useLiveCampaign(options: Options) {
       if (cancelled) return;
       applyingRemoteRef.current = true;
       if (remoteMessages.length) setMessages(remoteMessages.map((message) => toChatMessage(message, user)));
-      if (remoteMap) setBattlemap(remoteMap);
-      if (remoteInitiative) setInitiative(remoteInitiative);
+      if (remoteMap) { revisionsRef.current.battlemap = remoteMap.revision; setBattlemap(remoteMap.payload); }
+      if (remoteInitiative) { revisionsRef.current.initiative = remoteInitiative.revision; setInitiative(remoteInitiative.payload); }
       queueMicrotask(() => { applyingRemoteRef.current = false; });
       setStatus("online");
     }).catch((cause) => {
@@ -81,8 +83,9 @@ export function useLiveCampaign(options: Options) {
     const messageChannel = subscribeToCampaignMessages(remoteId, (message) => {
       setMessages((previous) => previous.some((item) => item.id === message.id) ? previous : [...previous, toChatMessage(message, user)]);
     });
-    const stateChannel = subscribeToCampaignState(remoteId, (key, payload) => {
+    const stateChannel = subscribeToCampaignState(remoteId, (key, payload, revision) => {
       applyingRemoteRef.current = true;
+      revisionsRef.current[key] = revision;
       if (key === "battlemap") setBattlemap(payload as BattleMapData);
       if (key === "initiative") setInitiative(payload as InitiativeState);
       queueMicrotask(() => { applyingRemoteRef.current = false; });
@@ -96,15 +99,33 @@ export function useLiveCampaign(options: Options) {
 
   useEffect(() => {
     if (!remoteId || applyingRemoteRef.current || campaign?.gmUserId !== user?.id) return;
-    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap).catch(() => setStatus("error")), 900);
+    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap, revisionsRef.current.battlemap)
+      .then((revision) => { revisionsRef.current.battlemap = revision; setStatus("online"); })
+      .catch(async (cause) => {
+        setStatus("error");
+        if (cause instanceof CampaignStateConflictError) {
+          const latest = await loadCampaignState<BattleMapData>(remoteId, "battlemap");
+          if (latest) { revisionsRef.current.battlemap = latest.revision; setBattlemap(latest.payload); }
+          setError(cause.message);
+        } else setError(cause instanceof Error ? cause.message : "Falha ao salvar o mapa.");
+      }), 900);
     return () => window.clearTimeout(timer);
-  }, [battlemap, campaign?.gmUserId, remoteId, user?.id]);
+  }, [battlemap, campaign?.gmUserId, remoteId, setBattlemap, user?.id]);
 
   useEffect(() => {
     if (!remoteId || applyingRemoteRef.current || campaign?.gmUserId !== user?.id) return;
-    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative).catch(() => setStatus("error")), 700);
+    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative, revisionsRef.current.initiative)
+      .then((revision) => { revisionsRef.current.initiative = revision; setStatus("online"); })
+      .catch(async (cause) => {
+        setStatus("error");
+        if (cause instanceof CampaignStateConflictError) {
+          const latest = await loadCampaignState<InitiativeState>(remoteId, "initiative");
+          if (latest) { revisionsRef.current.initiative = latest.revision; setInitiative(latest.payload); }
+          setError(cause.message);
+        } else setError(cause instanceof Error ? cause.message : "Falha ao salvar a iniciativa.");
+      }), 700);
     return () => window.clearTimeout(timer);
-  }, [campaign?.gmUserId, initiative, remoteId, user?.id]);
+  }, [campaign?.gmUserId, initiative, remoteId, setInitiative, user?.id]);
 
   const sendMessage = useCallback(async (message: Partial<ChatMessage>) => {
     if (!remoteId) return false;

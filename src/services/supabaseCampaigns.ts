@@ -131,32 +131,37 @@ export function subscribeToCampaignMessages(
     .subscribe();
 }
 
-export async function saveCampaignState(campaignId: string, stateKey: string, payload: unknown) {
+export class CampaignStateConflictError extends Error {
+  constructor() { super("Este conteúdo foi alterado em outro aparelho. A versão mais recente foi carregada."); }
+}
+
+export async function saveCampaignState(campaignId: string, stateKey: string, payload: unknown, expectedRevision = 0) {
   if (!supabase) throw new Error("Supabase não está configurado.");
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) throw new Error("Entre na sua conta para sincronizar a campanha.");
-  const { error } = await supabase.from("campaign_state").upsert(
-    { campaign_id: campaignId, state_key: stateKey, payload, updated_by: auth.user.id, updated_at: new Date().toISOString() },
-    { onConflict: "campaign_id,state_key" },
-  );
+  const { data, error } = await supabase.rpc("save_campaign_state_versioned", {
+    target_campaign: campaignId, target_state_key: stateKey, target_payload: payload, expected_revision: expectedRevision,
+  });
+  if (error?.code === "40001") throw new CampaignStateConflictError();
   if (error) throw error;
+  return data as number;
 }
 
-export async function loadCampaignState<T>(campaignId: string, stateKey: string): Promise<T | null> {
+export type VersionedCampaignState<T> = { payload: T; revision: number };
+
+export async function loadCampaignState<T>(campaignId: string, stateKey: string): Promise<VersionedCampaignState<T> | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase.from("campaign_state").select("payload").eq("campaign_id", campaignId).eq("state_key", stateKey).maybeSingle();
+  const { data, error } = await supabase.from("campaign_state").select("payload,revision").eq("campaign_id", campaignId).eq("state_key", stateKey).maybeSingle();
   if (error) throw error;
-  return (data?.payload as T | undefined) ?? null;
+  return data ? { payload: data.payload as T, revision: Number(data.revision) } : null;
 }
 
-export function subscribeToCampaignState(campaignId: string, onState: (stateKey: string, payload: unknown) => void) {
+export function subscribeToCampaignState(campaignId: string, onState: (stateKey: string, payload: unknown, revision: number) => void) {
   if (!supabase) return null;
   return supabase.channel(`campaign:${campaignId}:state`).on(
     "postgres_changes",
     { event: "*", schema: "public", table: "campaign_state", filter: `campaign_id=eq.${campaignId}` },
     (event) => {
-      const row = event.new as { state_key?: string; payload?: unknown };
-      if (row.state_key) onState(row.state_key, row.payload);
+      const row = event.new as { state_key?: string; payload?: unknown; revision?: number };
+      if (row.state_key) onState(row.state_key, row.payload, Number(row.revision || 0));
     },
   ).subscribe();
 }
