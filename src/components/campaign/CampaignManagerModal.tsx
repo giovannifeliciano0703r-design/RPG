@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   X,
   Crown,
@@ -19,8 +19,11 @@ import {
   createCampaignInvite,
   createRemoteCampaign,
   joinCampaignByInvite,
+  loadRemoteCampaign,
+  subscribeToCampaignRoster,
   updateRemoteMemberAccess,
 } from "../../services/supabaseCampaigns";
+import { supabase } from "../../lib/supabase";
 
 interface CampaignManagerModalProps {
   isOpen: boolean;
@@ -48,19 +51,42 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
   const [isWorking, setIsWorking] = useState(false);
-
-  if (!isOpen) return null;
+  const campaignsRef = useRef(campaigns);
+  const onSaveRef = useRef(onSaveCampaigns);
+  const onSelectRef = useRef(onSelectCampaign);
+  campaignsRef.current = campaigns;
+  onSaveRef.current = onSaveCampaigns;
+  onSelectRef.current = onSelectCampaign;
 
   const showError = (title: string, cause: unknown) => setNotice({
     title,
     description: cause instanceof Error ? cause.message : "Não foi possível concluir. Tente novamente.",
   });
 
-  const saveUpdatedCampaign = (campaign: Campaign) => {
-    const exists = campaigns.some((item) => item.id === campaign.id);
-    onSaveCampaigns(exists ? campaigns.map((item) => item.id === campaign.id ? campaign : item) : [campaign, ...campaigns]);
-    onSelectCampaign(campaign);
-  };
+  const saveUpdatedCampaign = useCallback((campaign: Campaign) => {
+    const currentCampaigns = campaignsRef.current;
+    const exists = currentCampaigns.some((item) => item.id === campaign.id);
+    onSaveRef.current(exists ? currentCampaigns.map((item) => item.id === campaign.id ? campaign : item) : [campaign, ...currentCampaigns]);
+    onSelectRef.current(campaign);
+  }, []);
+
+  useEffect(() => {
+    const remoteId = activeCampaign?.remoteId;
+    if (!isOpen || !remoteId || !supabase) return;
+    let cancelled = false;
+    let refreshTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadRemoteCampaign(remoteId, activeCampaign.inviteCode)
+        .then((campaign) => { if (!cancelled) saveUpdatedCampaign(campaign); })
+        .catch(() => undefined), 150);
+    };
+    refresh();
+    const channel = subscribeToCampaignRoster(remoteId, refresh);
+    return () => { cancelled = true; window.clearTimeout(refreshTimer); if (channel) void supabase.removeChannel(channel); };
+  }, [activeCampaign?.inviteCode, activeCampaign?.remoteId, isOpen, saveUpdatedCampaign]);
+
+  if (!isOpen) return null;
 
   const handleCreateCampaign = async () => {
     if (!newCampaignName.trim()) return;

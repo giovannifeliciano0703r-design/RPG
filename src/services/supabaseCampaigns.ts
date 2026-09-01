@@ -165,3 +165,11 @@ export function subscribeToCampaignState(campaignId: string, onState: (stateKey:
     },
   ).subscribe();
 }
+
+export function subscribeToCampaignRoster(campaignId: string, onChange: () => void): RealtimeChannel | null {
+  if (!supabase) return null;
+  return supabase.channel(`campaign:${campaignId}:roster`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "campaign_members", filter: `campaign_id=eq.${campaignId}` }, onChange)
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "campaigns", filter: `id=eq.${campaignId}` }, onChange)
+    .subscribe();
+}
