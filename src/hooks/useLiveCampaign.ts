@@ -64,7 +64,8 @@ export function useLiveCampaign(options: Options) {
   }, [campaign, setCampaign, user]);
 
   useEffect(() => {
-    if (!remoteId || !supabase) return;
+    const client = supabase;
+    if (!remoteId || !client) return;
     let cancelled = false;
     setStatus("connecting");
     void Promise.all([
@@ -94,8 +95,8 @@ export function useLiveCampaign(options: Options) {
     });
     return () => {
       cancelled = true;
-      if (messageChannel) void supabase.removeChannel(messageChannel);
-      if (stateChannel) void supabase.removeChannel(stateChannel);
+      if (messageChannel) void client.removeChannel(messageChannel);
+      if (stateChannel) void client.removeChannel(stateChannel);
     };
   }, [remoteId, setBattlemap, setInitiative, setMessages, user]);
 

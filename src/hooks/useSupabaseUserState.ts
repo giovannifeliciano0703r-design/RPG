@@ -69,14 +69,15 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || hydratedUserRef.current !== userId || !supabase) return;
+    const client = supabase;
+    if (!userId || hydratedUserRef.current !== userId || !client) return;
     const channel = subscribeToUserAppState(userId, (patch, stateKey, revision) => {
       revisionsRef.current[stateKey] = revision;
       skipNextSaveRef.current = true;
       applyStateRef.current(patch);
       setIsSynced(true);
     });
-    return () => { if (channel) void supabase.removeChannel(channel); };
+    return () => { if (channel) void client.removeChannel(channel); };
   }, [isLoading, userId]);
 
   useEffect(() => {

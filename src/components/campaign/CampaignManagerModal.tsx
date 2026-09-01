@@ -93,7 +93,8 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
 
   useEffect(() => {
     const remoteId = activeCampaign?.remoteId;
-    if (!isOpen || !remoteId || !supabase) return;
+    const client = supabase;
+    if (!isOpen || !remoteId || !client) return;
     let cancelled = false;
     let refreshTimer: number | undefined;
     const refresh = () => {
@@ -104,7 +105,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
     };
     refresh();
     const channel = subscribeToCampaignRoster(remoteId, refresh);
-    return () => { cancelled = true; window.clearTimeout(refreshTimer); if (channel) void supabase.removeChannel(channel); };
+    return () => { cancelled = true; window.clearTimeout(refreshTimer); if (channel) void client.removeChannel(channel); };
   }, [activeCampaign?.inviteCode, activeCampaign?.remoteId, isOpen, saveUpdatedCampaign]);
 
   useEffect(() => {
