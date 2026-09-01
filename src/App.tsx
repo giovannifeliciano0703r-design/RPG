@@ -53,7 +53,6 @@ import {
 } from "./data/defaultAppData";
 
 import { executeMacro } from "./utils/macroEngine";
-import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
 import { HubView } from "./components/hub/HubView";
 import { normalizeRpgSystem } from "./domain/rpgSystems";
 import { useAppPersistence } from "./hooks/useAppPersistence";
@@ -80,6 +79,7 @@ const UserProfileModal = React.lazy(() => import("./components/UserProfileModal"
 const CampaignDualChat = React.lazy(() => import("./components/campaign/CampaignDualChat").then((module) => ({ default: module.CampaignDualChat })));
 const BattlemapCanvas = React.lazy(() => import("./components/vtt/BattlemapCanvas").then((module) => ({ default: module.BattlemapCanvas })));
 const InitiativeTrackerBar = React.lazy(() => import("./components/vtt/InitiativeTrackerBar").then((module) => ({ default: module.InitiativeTrackerBar })));
+const SystemSelectorModal = React.lazy(() => import("./components/SystemSelectorModal").then((module) => ({ default: module.SystemSelectorModal })));
 
 const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; icon: string }> = {
   "Dungeons & Dragons (D&D)": { short: "D&D 5e", subtitle: "D20 • Fantasia Medieval", icon: "⚔️" },
@@ -457,7 +457,13 @@ export default function App() {
   const isCurrentUserAdmin = isUserAdmin(currentUser);
 
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
-  const currentSystemMeta = RPG_SYSTEMS_META.find((s) => s.id === activeSystem) || RPG_SYSTEMS_META[0];
+  const systemSummary = SYSTEM_SHORT_LABELS[activeSystem];
+  const currentSystemMeta = {
+    icon: systemSummary.icon,
+    abbrev: systemSummary.short,
+    shortName: activeSystem,
+    badgeBg: "bg-[#DFB56C]/10 text-[#DFB56C] border-[#DFB56C]/30",
+  };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#14130E] text-[#EFE8D8] font-sans antialiased">
@@ -1067,7 +1073,7 @@ export default function App() {
       </React.Suspense>
 
       {/* 9. RPG System Selector Modal */}
-      <SystemSelectorModal
+      <React.Suspense fallback={null}><SystemSelectorModal
         isOpen={isMobileSystemOpen}
         activeSystem={activeSystem}
         onSelectSystem={(sys) => {
@@ -1075,7 +1081,7 @@ export default function App() {
           setIsMobileSystemOpen(false);
         }}
         onClose={() => setIsMobileSystemOpen(false)}
-      />
+      /></React.Suspense>
       <ConfirmDialog
         isOpen={pendingConfirmation !== null}
         title={pendingConfirmation?.title || "Confirmar ação"}
