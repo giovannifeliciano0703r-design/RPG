@@ -264,6 +264,19 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
     finally { setIsWorking(false); }
   };
 
+  const handleCreateInvite = async () => {
+    if (!activeCampaign?.remoteId || !canInvitePlayers) return;
+    setIsWorking(true);
+    try {
+      const inviteCode = await createCampaignInvite(activeCampaign.remoteId);
+      const records = await loadCampaignManagementRecords(activeCampaign.remoteId);
+      setInviteRecords(records.invites);
+      setAuditRecords(records.audit);
+      saveUpdatedCampaign({ ...activeCampaign, inviteCode, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível criar um convite", cause); }
+    finally { setIsWorking(false); }
+  };
+
   const handleRemoveMember = async () => {
     if (!activeCampaign?.remoteId || !memberRemoval) return;
     const target = memberRemoval;
@@ -412,12 +425,14 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                       <span className="text-[#A79C82]">Código:</span>
                       <strong className="text-[#DFB56C] tracking-widest">{activeCampaign.inviteCode}</strong>
                       <button
+                        type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(activeCampaign.inviteCode);
                           setCopiedCode(true);
                           setTimeout(() => setCopiedCode(false), 2000);
                         }}
                         className="text-[#A79C82] hover:text-[#EFE8D8] ml-1"
+                        aria-label="Copiar código de convite"
                         title="Copiar código de convite"
                       >
                         {copiedCode ? <Check className="w-3.5 h-3.5 text-[#8DAE8F]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -547,7 +562,10 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                 {(campaignPermissions.isOwner || activeCampaign.members.some((member) => member.userId === currentUser.id && member.role === "CO_GM")) ? (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <section className="p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl space-y-2" aria-labelledby="invite-history-title">
-                      <h4 id="invite-history-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase">Convites recentes</h4>
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 id="invite-history-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase">Convites recentes</h4>
+                        {canInvitePlayers ? <button type="button" disabled={isWorking} onClick={() => void handleCreateInvite()} className="rounded-lg border border-[#6A5730] px-2 py-1 text-[11px] font-bold text-[#DFB56C] hover:bg-[#DFB56C]/10 disabled:opacity-50">+ Novo convite</button> : null}
+                      </div>
                       {inviteRecords.length === 0 ? <p className="text-xs text-[#A79C82]">Nenhum convite registrado.</p> : inviteRecords.map((invite) => {
                         const inactive = Boolean(invite.revoked_at) || new Date(invite.expires_at).getTime() <= Date.now() || invite.uses >= invite.max_uses;
                         return <div key={invite.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#38352A] p-2 text-[11px]">
