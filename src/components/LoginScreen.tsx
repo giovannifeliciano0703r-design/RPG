@@ -46,6 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   const triggerHaptic = (ms: number = 25) => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -104,6 +105,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setErrorMessage("As senhas não coincidem.");
       return;
     }
+    if (!acceptedTerms) {
+      setErrorMessage("Leia e aceite os Termos de Uso e a Política de Privacidade.");
+      return;
+    }
     setIsLoading(true);
     triggerHaptic(50);
 
@@ -112,7 +117,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { display_name: name.trim(), avatar: selectedAvatar } },
+        options: { data: { display_name: name.trim(), avatar: selectedAvatar, accepted_terms: true, privacy_version: "2026-09-01" } },
       });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível criar a conta.");
@@ -463,9 +468,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
+                <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[#A79C82]">
+                  <input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 accent-[#DFB56C]" />
+                  <span>Li e aceito os <a href="/terms.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Termos de Uso</a> e a <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Política de Privacidade</a>.</span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={isLoading || password.length < 8 || password !== confirmPassword}
+                  disabled={isLoading || password.length < 8 || password !== confirmPassword || !acceptedTerms}
                   className="w-full min-h-[48px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-serif font-bold text-base rounded-xl shadow-lg shadow-[#7A2E27]/30 flex items-center justify-center gap-2 transition-all cursor-pointer mt-3 disabled:opacity-50"
                 >
                   {isLoading ? (
@@ -486,7 +496,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-3 text-[11px] font-mono text-[#A79C82] border-t border-[#38352A] bg-[#15140F]/80">
-        Mestre Arcano • Fichas, campanhas, bestiário e mesa virtual para RPG
+        Mestre Arcano • <a href="/terms.html" className="hover:text-[#EFE8D8] underline">Termos</a> • <a href="/privacy.html" className="hover:text-[#EFE8D8] underline">Privacidade</a>
       </footer>
     </div>
   );

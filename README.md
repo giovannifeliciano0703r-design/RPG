@@ -64,4 +64,6 @@ Consulte [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) e [CONTENT_POLICY.md
 
 ## Licença
 
-A licença do código ainda deve ser escolhida pelo mantenedor antes de redistribuição ampla. Conteúdo e marcas de terceiros seguem seus próprios termos.
+O código e os ativos originais são proprietários e têm todos os direitos reservados por Giovanni Feliciano. Conteúdo, bibliotecas e marcas de terceiros seguem seus próprios termos.
+
+Consulte também [PRIVACY.md](./PRIVACY.md), [TERMS.md](./TERMS.md), [SECURITY.md](./SECURITY.md) e [LICENSE](./LICENSE).
