@@ -12,7 +12,7 @@ select has_function('public', 'create_campaign_invite', array['uuid','integer','
 select has_function('public', 'join_campaign_by_invite', array['text'], 'invite join RPC exists');
 select has_function('public', 'save_campaign_state_versioned', array['uuid','text','jsonb','bigint'], 'versioned state RPC exists');
 select has_function('public', 'delete_my_account', array['text'], 'self-deletion RPC exists');
-select has_function('public', 'save_my_app_state_batch', array['jsonb'], 'atomic per-account state RPC exists');
+select has_function('public', 'save_my_app_state_batch', array['jsonb','uuid'], 'atomic per-account state RPC exists');
 select policies_are('public', 'trash_items', array['trash_items_own'], 'trash is private to its owner');
 
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');

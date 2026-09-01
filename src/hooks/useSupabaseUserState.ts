@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { isSupabaseConfigured } from "../lib/supabase";
-import { loadUserAppState, saveUserAppState, UserAppStateConflictError, type UserAppState } from "../services/supabaseUserState";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { loadUserAppState, saveUserAppState, subscribeToUserAppState, UserAppStateConflictError, type UserAppState } from "../services/supabaseUserState";
 
 const CACHE_OWNER_KEY = "mestre_arcano_cache_owner:v1";
 
@@ -21,6 +21,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   const createFreshStateRef = useRef(createFreshState);
   const onErrorRef = useRef(onError);
   const revisionsRef = useRef<Record<string, number>>({});
+  const skipNextSaveRef = useRef(false);
   stateRef.current = state;
   applyStateRef.current = applyState;
   createFreshStateRef.current = createFreshState;
@@ -66,7 +67,19 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   }, [userId]);
 
   useEffect(() => {
+    if (!userId || hydratedUserRef.current !== userId || !supabase) return;
+    const channel = subscribeToUserAppState(userId, (patch, stateKey, revision) => {
+      revisionsRef.current[stateKey] = revision;
+      skipNextSaveRef.current = true;
+      applyStateRef.current(patch);
+      setIsSynced(true);
+    });
+    return () => { if (channel) void supabase.removeChannel(channel); };
+  }, [isLoading, userId]);
+
+  useEffect(() => {
     if (!userId || hydratedUserRef.current !== userId) return;
+    if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return; }
     setIsSynced(false);
     const timer = window.setTimeout(() => {
       void saveUserAppState(userId, stateRef.current, revisionsRef.current)
