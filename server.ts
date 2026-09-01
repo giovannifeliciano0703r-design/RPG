@@ -22,6 +22,7 @@ app.use((req, res, next) => {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     res.setHeader(
       "Content-Security-Policy",
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
@@ -80,8 +81,16 @@ app.get("/api/health", async (_req, res) => {
       database = response.ok ? "ok" : "unreachable";
     } catch { database = "unreachable"; }
   }
-  const healthy = database !== "unreachable";
-  res.status(healthy ? 200 : 503).json({ status: healthy ? "ok" : "degraded", database, timestamp: new Date().toISOString() });
+  const healthy = database === "ok" || (process.env.NODE_ENV !== "production" && database === "unconfigured");
+  if (!healthy) console.error(JSON.stringify({ level: "error", event: "health.degraded", database }));
+  res.setHeader("Cache-Control", "no-store");
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "degraded",
+    database,
+    uptimeSeconds: Math.floor(process.uptime()),
+    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || "local",
+    timestamp: new Date().toISOString(),
+  });
 });
 
 async function startServer() {
