@@ -63,6 +63,7 @@ import { useLiveCampaign } from "./hooks/useLiveCampaign";
 import { deleteUserMediaAsset, loadUserMediaAssets, uploadCampaignMedia } from "./services/supabaseMedia";
 import { useCampaignWorkspace } from "./hooks/useCampaignWorkspace";
 import { useAppAuth } from "./hooks/useAppAuth";
+import { getCampaignPermissions } from "./domain/campaignPermissions";
 import { useSupabaseUserState } from "./hooks/useSupabaseUserState";
 import type { UserAppState } from "./services/supabaseUserState";
 import { supabase } from "./lib/supabase";
@@ -205,10 +206,14 @@ export default function App() {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
   }, []);
 
-  const { currentUser, setCurrentUser, isAuthChecking, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
+  const { currentUser, setCurrentUser, isAuthChecking, isPasswordRecovery, clearPasswordRecovery, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
     onPreferredSystem: setActiveSystem,
   });
   const currentUserId = currentUser?.id;
+
+  useEffect(() => {
+    if (currentUser && isPasswordRecovery) setIsProfileOpen(true);
+  }, [currentUser, isPasswordRecovery]);
 
   const applyUserAppState = useCallback((remote: Partial<UserAppState>) => {
     if (remote.activeSystem) setActiveSystem(normalizeRpgSystem(remote.activeSystem));
@@ -460,7 +465,7 @@ export default function App() {
 
   const isCurrentUserAdmin = isUserAdmin(currentUser);
 
-  const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
+  const { isOwner: isCurrentGm, canManageInitiative, canEditMaps, canEditSharedMacros } = getCampaignPermissions(activeCampaign, currentUser.id);
   const systemSummary = SYSTEM_SHORT_LABELS[activeSystem];
   const currentSystemMeta = {
     icon: systemSummary.icon,
@@ -884,7 +889,7 @@ export default function App() {
                     combatants: [...prev.combatants, newInit].sort((a, b) => b.initiativeRoll - a.initiativeRoll),
                   }));
                 }}
-                isGm={isCurrentGm}
+                isGm={canManageInitiative}
               />
               </React.Suspense>
 
@@ -893,7 +898,7 @@ export default function App() {
               <BattlemapCanvas
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
-                isGm={isCurrentGm}
+                isGm={canEditMaps}
                 currentUser={currentUser}
                 characters={characters}
                 activeCharacter={activeCharacter}
@@ -1003,7 +1008,7 @@ export default function App() {
           onSaveMacros={setMacros}
           activeSheet={activeCharacter}
           onExecuteMacro={handleExecuteMacro}
-          isGm={isCurrentGm}
+          isGm={canEditSharedMacros}
         />
       )}
 
@@ -1086,7 +1091,7 @@ export default function App() {
       {isProfileOpen && (
         <UserProfileModal
         isOpen
-        onClose={() => setIsProfileOpen(false)}
+        onClose={() => { setIsProfileOpen(false); clearPasswordRecovery(); }}
         user={currentUser}
         onUpdateUser={handleUpdateProfile}
         onLogout={handleLogout}

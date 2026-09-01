@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   X,
   User,
@@ -16,6 +16,7 @@ import {
   MonitorX,
   Download,
   UserX,
+  ShieldCheck,
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
@@ -60,6 +61,22 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaQrCode, setMfaQrCode] = useState("");
+  const [mfaSecret, setMfaSecret] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [hasMfa, setHasMfa] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !supabase) return;
+    let cancelled = false;
+    void supabase.auth.mfa.listFactors().then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) setAccountError(error.message);
+      else setHasMfa(data.totp.some((factor) => factor.status === "verified"));
+    });
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -114,6 +131,50 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       if (error) throw error;
       setAccountMessage("As outras sessões foram encerradas. Este aparelho continua conectado.");
     } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível encerrar as sessões."); }
+    finally { setIsAccountBusy(false); }
+  };
+
+  const startMfaEnrollment = async () => {
+    setAccountError(""); setAccountMessage(""); setIsAccountBusy(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp", friendlyName: "Mestre Arcano" });
+      if (error) throw error;
+      setMfaFactorId(data.id);
+      setMfaQrCode(data.totp.qr_code);
+      setMfaSecret(data.totp.secret);
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível iniciar a verificação em duas etapas."); }
+    finally { setIsAccountBusy(false); }
+  };
+
+  const verifyMfaEnrollment = async () => {
+    setAccountError(""); setAccountMessage("");
+    if (!/^\d{6}$/.test(mfaCode)) return setAccountError("Digite o código de 6 números do aplicativo autenticador.");
+    setIsAccountBusy(true);
+    try {
+      if (!supabase || !mfaFactorId) throw new Error("Inicie a configuração novamente.");
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode });
+      if (error) throw error;
+      setHasMfa(true); setMfaFactorId(""); setMfaQrCode(""); setMfaSecret(""); setMfaCode("");
+      setAccountMessage("Verificação em duas etapas ativada. Os outros aparelhos foram desconectados.");
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Código inválido ou expirado."); }
+    finally { setIsAccountBusy(false); }
+  };
+
+  const disableMfa = async () => {
+    setAccountError(""); setAccountMessage(""); setIsAccountBusy(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { data, error } = await supabase.auth.mfa.listFactors();
+      if (error) throw error;
+      const verified = data.totp.find((factor) => factor.status === "verified");
+      if (!verified) throw new Error("Nenhum autenticador ativo foi encontrado.");
+      const result = await supabase.auth.mfa.unenroll({ factorId: verified.id });
+      if (result.error) throw result.error;
+      await supabase.auth.refreshSession();
+      setHasMfa(false);
+      setAccountMessage("Verificação em duas etapas desativada.");
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Confirme o segundo fator antes de desativá-lo."); }
     finally { setIsAccountBusy(false); }
   };
 
@@ -266,6 +327,28 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <button type="button" disabled={isAccountBusy} onClick={closeOtherSessions} className="w-full px-3 py-2 border border-[#38352A] rounded-lg text-xs text-[#A79C82] hover:text-[#EFE8D8] disabled:opacity-50 flex items-center justify-center gap-1.5">
               <MonitorX className="w-3.5 h-3.5" /> Encerrar sessões em outros aparelhos
             </button>
+            <div className="rounded-lg border border-[#38352A] p-3 space-y-2" aria-labelledby="mfa-title">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h4 id="mfa-title" className="text-xs font-bold text-[#EFE8D8] flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-[#8DAE8F]" /> Verificação em duas etapas</h4>
+                  <p className="mt-1 text-[10px] text-[#A79C82]">Use Google Authenticator, Microsoft Authenticator ou outro aplicativo TOTP.</p>
+                </div>
+                <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-mono ${hasMfa ? "bg-[#4B6B4E]/20 text-[#8DAE8F]" : "bg-[#38352A] text-[#A79C82]"}`}>{hasMfa ? "ATIVA" : "INATIVA"}</span>
+              </div>
+              {!hasMfa && !mfaFactorId ? (
+                <button type="button" disabled={isAccountBusy} onClick={startMfaEnrollment} className="w-full px-3 py-2 border border-[#8DAE8F]/40 rounded-lg text-xs text-[#8DAE8F] disabled:opacity-50">Ativar proteção adicional</button>
+              ) : null}
+              {mfaFactorId ? (
+                <div className="space-y-2 text-center">
+                  <img src={mfaQrCode} alt="Código QR para configurar o aplicativo autenticador" className="mx-auto h-40 w-40 rounded-lg bg-white p-2" />
+                  <p className="text-[10px] text-[#A79C82]">Não consegue ler o QR? Chave: <code className="break-all text-[#DFB56C]">{mfaSecret}</code></p>
+                  <label htmlFor="mfa-enrollment-code" className="sr-only">Código de verificação</label>
+                  <input id="mfa-enrollment-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, ""))} placeholder="Código de 6 números" className="w-full bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-center text-sm tracking-[0.3em] text-[#EFE8D8]" />
+                  <button type="button" disabled={isAccountBusy || mfaCode.length !== 6} onClick={verifyMfaEnrollment} className="w-full px-3 py-2 rounded-lg bg-[#4B6B4E] text-xs font-bold text-white disabled:opacity-50">Confirmar e ativar</button>
+                </div>
+              ) : null}
+              {hasMfa ? <button type="button" disabled={isAccountBusy} onClick={disableMfa} className="w-full px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] disabled:opacity-50">Desativar verificação em duas etapas</button> : null}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#38352A]">
               <button type="button" disabled={isAccountBusy} onClick={exportAccount} className="px-3 py-2 border border-[#38352A] rounded-lg text-xs text-[#A79C82] hover:text-[#EFE8D8] disabled:opacity-50 flex items-center justify-center gap-1.5">
                 <Download className="w-3.5 h-3.5" /> Baixar meus dados

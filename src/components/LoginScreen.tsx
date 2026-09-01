@@ -47,6 +47,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
 
   const triggerHaptic = (ms: number = 25) => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -75,6 +77,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       if (!password) throw new Error("Informe sua senha para entrar.");
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error || !data.user) throw new Error(error?.message || "E-mail ou senha inválidos.");
+      const [{ data: factors, error: factorsError }, { data: assurance, error: assuranceError }] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      ]);
+      if (factorsError) throw factorsError;
+      if (assuranceError) throw assuranceError;
+      const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
+      if (verifiedFactor && assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
+        setMfaFactorId(verifiedFactor.id);
+        setSuccessMessage("Senha confirmada. Digite agora o código do seu aplicativo autenticador.");
+        return;
+      }
       onLogin(await toUserProfile(data.user), true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao entrar.");
@@ -82,6 +96,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setIsLoading(false);
       setPassword("");
     }
+  };
+
+  const handleMfaSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMessage(""); setSuccessMessage("");
+    if (!/^\d{6}$/.test(mfaCode)) return setErrorMessage("Digite o código de 6 números do aplicativo autenticador.");
+    setIsLoading(true);
+    try {
+      if (!supabase || !mfaFactorId) throw new Error("Entre novamente para confirmar sua identidade.");
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode });
+      if (error) throw error;
+      const { data, error: userError } = await supabase.auth.getUser();
+      if (userError || !data.user) throw new Error(userError?.message || "Sessão não encontrada.");
+      onLogin(await toUserProfile(data.user), true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Código inválido ou expirado.");
+      setMfaCode("");
+    } finally { setIsLoading(false); }
+  };
+
+  const cancelMfa = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setMfaFactorId(""); setMfaCode(""); setPassword(""); setSuccessMessage(""); setErrorMessage("");
   };
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
@@ -255,7 +292,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </div>
             )}
 
-            {tab === "login" ? (
+            {mfaFactorId ? (
+              <form onSubmit={handleMfaSubmit} className="space-y-3.5">
+                <div>
+                  <label htmlFor="login-mfa-code" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">Código de verificação</label>
+                  <input id="login-mfa-code" autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, ""))} placeholder="000000" className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-3 px-3 text-center text-lg tracking-[0.4em] text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]" />
+                </div>
+                <button type="submit" disabled={isLoading || mfaCode.length !== 6} className="w-full min-h-[48px] bg-[#7A2E27] text-white font-serif font-bold rounded-xl disabled:opacity-50">Confirmar identidade</button>
+                <button type="button" disabled={isLoading} onClick={() => void cancelMfa()} className="w-full py-2 text-xs text-[#A79C82] hover:text-[#EFE8D8]">Cancelar e sair</button>
+              </form>
+            ) : tab === "login" ? (
               /* ================= LOGIN FORM ================= */
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 <div>
