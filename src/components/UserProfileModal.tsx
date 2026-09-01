@@ -27,7 +27,7 @@ interface UserProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: UserProfile;
-  onUpdateUser: (updated: UserProfile) => void;
+  onUpdateUser: (updated: UserProfile) => Promise<void>;
   onLogout: () => void;
 }
 
@@ -58,11 +58,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [accountError, setAccountError] = useState("");
   const [isAccountBusy, setIsAccountBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setProfileError("");
     const updated: UserProfile = {
       ...user,
       name: name.trim() || user.name,
@@ -71,12 +74,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       favoriteSystem,
       avatar: selectedAvatar,
     };
-    onUpdateUser(updated);
-    setSavedSuccess(true);
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 600);
+    setIsSavingProfile(true);
+    try {
+      await onUpdateUser(updated);
+      setSavedSuccess(true);
+      setTimeout(() => { setSavedSuccess(false); onClose(); }, 600);
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "Não foi possível salvar o perfil.");
+    } finally { setIsSavingProfile(false); }
   };
 
   const getAvatarIcon = (id: string) => {
@@ -272,9 +277,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </section>
 
           {/* Action buttons */}
+          {profileError && <p role="alert" className="text-xs text-[#C4645A]">{profileError}</p>}
           <div className="pt-2 flex items-center gap-2">
             <button
               type="submit"
+              disabled={isSavingProfile}
               className="flex-1 min-h-[44px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-medium text-sm rounded-xl flex items-center justify-center gap-2 transition-all shadow-md"
             >
               {savedSuccess ? (
@@ -282,7 +289,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <Check className="w-4 h-4 text-emerald-400" />
                   <span>Ficha Atualizada!</span>
                 </>
-              ) : (
+              ) : isSavingProfile ? <span>Salvando no Supabase…</span> : (
                 <>
                   <Sparkles className="w-4 h-4 text-[#DFB56C]" />
                   <span>Salvar Alterações</span>

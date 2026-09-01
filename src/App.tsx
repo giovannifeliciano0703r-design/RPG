@@ -317,19 +317,20 @@ export default function App() {
     clearAuthSession();
   };
 
-  const handleUpdateProfile = (updated: UserProfile) => {
+  const handleUpdateProfile = async (updated: UserProfile) => {
     const safeUpdated = { ...updated, role: currentUser!.role, isAdmin: isUserAdmin(currentUser) };
-    setCurrentUser(safeUpdated);
-    if (supabase) {
-      void supabase.auth.updateUser({
+    if (!supabase) throw new Error("Supabase não está configurado.");
+    const { error: authError } = await supabase.auth.updateUser({
         data: {
           display_name: safeUpdated.name,
           avatar: safeUpdated.avatar,
           favorite_system: safeUpdated.favoriteSystem,
         },
       });
-      void supabase.from("profiles").update({ display_name: safeUpdated.name }).eq("id", safeUpdated.id);
-    }
+    if (authError) throw authError;
+    const { error: profileError } = await supabase.from("profiles").update({ display_name: safeUpdated.name, avatar_url: safeUpdated.avatar }).eq("id", safeUpdated.id);
+    if (profileError) throw profileError;
+    setCurrentUser(safeUpdated);
     if (safeUpdated.favoriteSystem && safeUpdated.favoriteSystem !== activeSystem) {
       setActiveSystem(safeUpdated.favoriteSystem);
     }
