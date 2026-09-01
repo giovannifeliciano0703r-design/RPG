@@ -14,10 +14,14 @@ import {
   Sparkles,
   KeyRound,
   MonitorX,
+  Download,
+  UserX,
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
 import { supabase } from "../lib/supabase";
+import { deleteMyAccount, downloadAccountExport, exportMyAccountData } from "../services/supabaseAccount";
+import { ConfirmDialog } from "./ui/Dialog";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -53,6 +57,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [accountMessage, setAccountMessage] = useState("");
   const [accountError, setAccountError] = useState("");
   const [isAccountBusy, setIsAccountBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!isOpen) return null;
 
@@ -105,6 +110,19 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setAccountMessage("As outras sessões foram encerradas. Este aparelho continua conectado.");
     } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível encerrar as sessões."); }
     finally { setIsAccountBusy(false); }
+  };
+
+  const exportAccount = async () => {
+    setAccountError(""); setAccountMessage(""); setIsAccountBusy(true);
+    try { downloadAccountExport(await exportMyAccountData()); setAccountMessage("Cópia dos seus dados baixada."); }
+    catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível exportar seus dados."); }
+    finally { setIsAccountBusy(false); }
+  };
+
+  const deleteAccount = async () => {
+    setConfirmDelete(false); setAccountError(""); setAccountMessage(""); setIsAccountBusy(true);
+    try { await deleteMyAccount(); onLogout(); }
+    catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível excluir a conta."); setIsAccountBusy(false); }
   };
 
   return (
@@ -243,6 +261,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <button type="button" disabled={isAccountBusy} onClick={closeOtherSessions} className="w-full px-3 py-2 border border-[#38352A] rounded-lg text-xs text-[#A79C82] hover:text-[#EFE8D8] disabled:opacity-50 flex items-center justify-center gap-1.5">
               <MonitorX className="w-3.5 h-3.5" /> Encerrar sessões em outros aparelhos
             </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#38352A]">
+              <button type="button" disabled={isAccountBusy} onClick={exportAccount} className="px-3 py-2 border border-[#38352A] rounded-lg text-xs text-[#A79C82] hover:text-[#EFE8D8] disabled:opacity-50 flex items-center justify-center gap-1.5">
+                <Download className="w-3.5 h-3.5" /> Baixar meus dados
+              </button>
+              <button type="button" disabled={isAccountBusy} onClick={() => setConfirmDelete(true)} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] hover:bg-[#7A2E27]/20 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                <UserX className="w-3.5 h-3.5" /> Excluir minha conta
+              </button>
+            </div>
           </section>
 
           {/* Action buttons */}
@@ -276,6 +302,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </form>
       </div>
+      <ConfirmDialog
+        isOpen={confirmDelete}
+        title="Excluir conta definitivamente?"
+        description="Esta ação apaga suas fichas, mídias e campanhas próprias. Participações também serão removidas. Baixe seus dados antes se quiser guardar uma cópia."
+        confirmLabel="Excluir definitivamente"
+        cancelLabel="Manter minha conta"
+        destructive
+        onConfirm={deleteAccount}
+        onClose={() => setConfirmDelete(false)}
+      />
     </div>
   );
 };
