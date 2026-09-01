@@ -11,5 +11,7 @@ export function getCampaignPermissions(campaign: Campaign | null, userId: string
     canEditMaps: isOwner || (isCoGm && delegated?.canEditMaps === true),
     canManageInitiative: isOwner || (isCoGm && delegated?.canManageInitiative === true),
     canEditSharedMacros: isOwner || (isCoGm && delegated?.canEditSharedMacros === true),
+    canInvitePlayers: isOwner || (isCoGm && delegated?.canInvitePlayers === true),
+    canKickPlayers: isOwner || (isCoGm && delegated?.canKickPlayers === true),
   };
 }

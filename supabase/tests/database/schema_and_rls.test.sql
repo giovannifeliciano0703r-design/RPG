@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(20);
+select plan(23);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -13,6 +13,9 @@ select has_function('public', 'join_campaign_by_invite', array['text'], 'invite 
 select has_function('public', 'save_campaign_state_versioned', array['uuid','text','jsonb','bigint'], 'versioned state RPC exists');
 select has_function('public', 'delete_my_account', array['text'], 'self-deletion RPC exists');
 select has_function('public', 'save_my_app_state_batch', array['jsonb','uuid'], 'atomic per-account state RPC exists');
+select has_function('public', 'revoke_campaign_invite', array['uuid'], 'invite revocation RPC exists');
+select has_function('public', 'remove_campaign_member', array['uuid','uuid'], 'membership removal RPC exists');
+select has_function('public', 'has_campaign_permission', array['uuid','text'], 'server-side campaign permission checker exists');
 select policies_are('public', 'trash_items', array['trash_items_own'], 'trash is private to its owner');
 select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='campaign_members'), 1, 'campaign roster is realtime');
 select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='user_app_state'), 1, 'account state is realtime');

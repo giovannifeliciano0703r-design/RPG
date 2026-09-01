@@ -12,18 +12,21 @@ import {
   Sparkles,
   Settings,
   Flame,
+  LogOut,
 } from "lucide-react";
 import { Campaign, CampaignMember, CampaignRole, CoGmPermissions, UserProfile } from "../../types";
-import { NoticeDialog } from "../ui/Dialog";
+import { ConfirmDialog, NoticeDialog } from "../ui/Dialog";
 import {
   createCampaignInvite,
   createRemoteCampaign,
   joinCampaignByInvite,
   loadRemoteCampaign,
+  removeRemoteCampaignMember,
   subscribeToCampaignRoster,
   updateRemoteMemberAccess,
 } from "../../services/supabaseCampaigns";
 import { supabase } from "../../lib/supabase";
+import { getCampaignPermissions } from "../../domain/campaignPermissions";
 
 interface CampaignManagerModalProps {
   isOpen: boolean;
@@ -51,6 +54,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
   const [isWorking, setIsWorking] = useState(false);
+  const [memberRemoval, setMemberRemoval] = useState<CampaignMember | null>(null);
   const campaignsRef = useRef(campaigns);
   const onSaveRef = useRef(onSaveCampaigns);
   const onSelectRef = useRef(onSelectCampaign);
@@ -220,6 +224,25 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   };
 
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
+  const { canKickPlayers } = getCampaignPermissions(activeCampaign, currentUser.id);
+
+  const handleRemoveMember = async () => {
+    if (!activeCampaign?.remoteId || !memberRemoval) return;
+    const target = memberRemoval;
+    setMemberRemoval(null); setIsWorking(true);
+    try {
+      await removeRemoteCampaignMember(activeCampaign.remoteId, target.userId);
+      if (target.userId === currentUser.id) {
+        const remaining = campaigns.filter((campaign) => campaign.id !== activeCampaign.id);
+        onSaveCampaigns(remaining);
+        if (remaining[0]) onSelectCampaign(remaining[0]);
+        onClose();
+      } else {
+        saveUpdatedCampaign({ ...activeCampaign, members: activeCampaign.members.filter((member) => member.userId !== target.userId), updatedAt: Date.now() });
+      }
+    } catch (cause) { showError("Não foi possível remover o participante", cause); }
+    finally { setIsWorking(false); }
+  };
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Gerenciador de campanhas" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
@@ -363,6 +386,11 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                       </button>
                     </div>
                   </div>}
+                  {!isCurrentGm ? (
+                    <button type="button" disabled={isWorking} onClick={() => { const ownMember = activeCampaign.members.find((member) => member.userId === currentUser.id); if (ownMember) setMemberRemoval(ownMember); }} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] flex items-center gap-1.5 disabled:opacity-50">
+                      <LogOut className="w-3.5 h-3.5" /> Sair da campanha
+                    </button>
+                  ) : null}
                 </div>
 
                 {/* Member Roster & Roles */}
@@ -418,7 +446,10 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                                 <option value="CO_GM">Co-GM (Auxiliar)</option>
                                 <option value="SPECTATOR">Espectador</option>
                               </select>
+                              <button type="button" disabled={isWorking} onClick={() => setMemberRemoval(member)} aria-label={`Remover ${member.userName} da campanha`} title="Remover participante" className="p-1.5 text-[#C4645A] hover:bg-[#7A2E27]/20 rounded-lg disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
                             </div>
+                          ) : canKickPlayers && member.userId !== activeCampaign.gmUserId && member.userId !== currentUser.id ? (
+                            <button type="button" disabled={isWorking} onClick={() => setMemberRemoval(member)} className="px-2.5 py-1 border border-[#7A2E27] rounded-lg text-[11px] text-[#C4645A] disabled:opacity-50">Remover</button>
                           ) : (
                             <span className="font-mono text-xs text-[#A79C82]">{member.role}</span>
                           )}
@@ -490,6 +521,15 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
         title={notice?.title || "Aviso"}
         description={notice?.description || ""}
         onClose={() => setNotice(null)}
+      />
+      <ConfirmDialog
+        isOpen={memberRemoval !== null}
+        title={memberRemoval?.userId === currentUser.id ? "Sair desta campanha?" : `Remover ${memberRemoval?.userName || "participante"}?`}
+        description={memberRemoval?.userId === currentUser.id ? "Você deixará de acessar a mesa, o chat e os dados compartilhados desta campanha." : "A pessoa perderá acesso à mesa e poderá voltar somente com um novo convite válido."}
+        confirmLabel={memberRemoval?.userId === currentUser.id ? "Sair da campanha" : "Remover participante"}
+        destructive
+        onConfirm={() => void handleRemoveMember()}
+        onClose={() => setMemberRemoval(null)}
       />
     </div>
   );

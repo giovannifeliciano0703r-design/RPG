@@ -13,11 +13,11 @@ const campaign = {
 
 describe("getCampaignPermissions", () => {
   it("concede todos os controles ao dono", () => {
-    expect(getCampaignPermissions(campaign, "owner")).toEqual({ isOwner: true, canEditMaps: true, canManageInitiative: true, canEditSharedMacros: true });
+    expect(getCampaignPermissions(campaign, "owner")).toMatchObject({ isOwner: true, canEditMaps: true, canManageInitiative: true, canEditSharedMacros: true, canInvitePlayers: true, canKickPlayers: true });
   });
 
   it("respeita apenas permissões delegadas ao CoMestre", () => {
-    expect(getCampaignPermissions(campaign, "cogm")).toEqual({ isOwner: false, canEditMaps: true, canManageInitiative: false, canEditSharedMacros: true });
-    expect(getCampaignPermissions(campaign, "player")).toEqual({ isOwner: false, canEditMaps: false, canManageInitiative: false, canEditSharedMacros: false });
+    expect(getCampaignPermissions(campaign, "cogm")).toMatchObject({ isOwner: false, canEditMaps: true, canManageInitiative: false, canEditSharedMacros: true });
+    expect(getCampaignPermissions(campaign, "player")).toMatchObject({ isOwner: false, canEditMaps: false, canManageInitiative: false, canEditSharedMacros: false, canInvitePlayers: false, canKickPlayers: false });
   });
 });
