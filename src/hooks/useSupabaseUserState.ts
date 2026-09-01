@@ -4,6 +4,10 @@ import { loadUserAppState, saveUserAppState, subscribeToUserAppState, UserAppSta
 
 const CACHE_OWNER_KEY = "mestre_arcano_cache_owner:v1";
 
+export function selectInitialAccountState<T>(cachedOwner: string | null, userId: string, cachedState: T, freshState: T): T {
+  return cachedOwner === userId ? cachedState : freshState;
+}
+
 interface Options {
   userId?: string;
   state: UserAppState;
@@ -47,10 +51,8 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
           applyStateRef.current(remoteState);
         } else {
           const cachedOwner = localStorage.getItem(CACHE_OWNER_KEY);
-          const initialState = cachedOwner === null || cachedOwner === userId
-            ? stateRef.current
-            : createFreshStateRef.current();
-          if (cachedOwner && cachedOwner !== userId) applyStateRef.current(initialState);
+          const initialState = selectInitialAccountState(cachedOwner, userId, stateRef.current, createFreshStateRef.current());
+          if (cachedOwner !== userId) applyStateRef.current(initialState);
           revisionsRef.current = await saveUserAppState(userId, initialState);
         }
         if (cancelled) return;
