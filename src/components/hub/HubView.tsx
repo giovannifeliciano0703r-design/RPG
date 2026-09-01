@@ -12,28 +12,20 @@ import {
   Image as ImageIcon,
   Crown,
   Users,
-  ExternalLink,
   Plus,
-  Compass,
   CheckCircle2,
   Heart,
-  Menu,
   ChevronDown,
   Trash2,
 } from "lucide-react";
 import {
-  UserProfile,
   CharacterSheet,
-  RpgSystem,
 } from "../../types";
 
 interface HubViewProps {
-  currentUser: UserProfile;
   activeCharacter: CharacterSheet | null;
   characters: CharacterSheet[];
-  activeSystem: RpgSystem;
   onNavigateView: (view: "vtt" | "hub") => void;
-  onToggleSidebar?: () => void;
   onOpenCharacterSheet: (character?: CharacterSheet) => void;
   onDeleteCharacter: (character: CharacterSheet) => void;
   onOpenBestiary: () => void;
@@ -42,17 +34,12 @@ interface HubViewProps {
   onOpenNpcFolders: () => void;
   onOpenCampaignManager: () => void;
   onOpenDiceRoller: () => void;
-  onOpenSystemSelector: () => void;
-  onOpenProfile: () => void;
 }
 
 export const HubView: React.FC<HubViewProps> = ({
-  currentUser,
   activeCharacter,
   characters,
-  activeSystem,
   onNavigateView,
-  onToggleSidebar,
   onOpenCharacterSheet,
   onDeleteCharacter,
   onOpenBestiary,
@@ -61,86 +48,9 @@ export const HubView: React.FC<HubViewProps> = ({
   onOpenNpcFolders,
   onOpenCampaignManager,
   onOpenDiceRoller,
-  onOpenSystemSelector,
-  onOpenProfile,
 }) => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#15140F] text-[#EFE8D8] overflow-y-auto custom-scrollbar">
-      {/* Top Banner Navigation Bar */}
-      <div className="bg-[#1D1B14] border-b border-[#38352A] px-4 py-3 sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              className="px-3 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#DFB56C] border border-[#38352A] hover:border-[#DFB56C] font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
-              title="Abrir/Fechar Menu Lateral"
-            >
-              <Menu className="w-3.5 h-3.5" />
-              <span className="font-mono">Menu</span>
-            </button>
-          )}
-
-          {/* Active HUB Tab */}
-          <button
-            className="px-4 py-1.5 bg-[#DFB56C] text-[#15140F] font-black font-sans text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center gap-1.5 cursor-pointer shrink-0"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>HUB</span>
-          </button>
-
-          <button
-            onClick={() => onOpenCharacterSheet(activeCharacter || undefined)}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Fichas de Personagem"
-          >
-            <Users className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Fichas</span>
-          </button>
-
-          <button
-            onClick={() => onNavigateView("vtt")}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Mesa Virtual & Battlemap"
-          >
-            <MapIcon className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Mesa VTT</span>
-          </button>
-
-          <button
-            onClick={onOpenBestiary}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Bestiário de Criaturas"
-          >
-            <Flame className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Bestiário</span>
-          </button>
-        </div>
-
-        {/* User quick status & System badge */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenSystemSelector}
-            className="px-2.5 py-1 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#DFB56C] rounded-lg text-xs font-mono flex items-center gap-1 transition-colors cursor-pointer"
-            title="Alterar Sistema Ativo"
-          >
-            <Sparkles className="w-3 h-3 text-[#DFB56C]" />
-            <span className="hidden sm:inline font-bold">{activeSystem}</span>
-            <span className="sm:hidden font-bold">Sistema</span>
-          </button>
-
-          <button
-            onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#EFE8D8] rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            title="Perfil de Usuário"
-          >
-            <div className="w-5 h-5 rounded-full bg-[#DFB56C] text-[#15140F] flex items-center justify-center text-[10px] font-black">
-              {currentUser.name.substring(0, 1).toUpperCase()}
-            </div>
-            <span className="hidden md:inline max-w-[100px] truncate">{currentUser.name}</span>
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-8">
         {/* Fullscreen Hero Portal Entrance */}
         <div className="min-h-[calc(100vh-84px)] flex flex-col justify-between relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#1D1B14] via-[#1A1812] to-[#15140F] border border-[#38352A] p-6 sm:p-10 lg:p-12 shadow-2xl">
@@ -194,45 +104,6 @@ export const HubView: React.FC<HubViewProps> = ({
 
         {/* Lower sections: Appears smoothly when scrolling down */}
         <div id="hub-content" className="space-y-6 pt-2">
-
-        {/* Featured Quick Banner Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Card 1: VTT */}
-          <div
-            onClick={() => onNavigateView("vtt")}
-            className="p-4 bg-[#1D1B14] border border-[#4B6B4E]/50 hover:border-[#8DAE8F] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8DAE8F]">MESA VTT ATIVA</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Entrar no Battlemap</h4>
-            </div>
-            <ExternalLink className="w-5 h-5 text-[#8DAE8F] group-hover:scale-110 transition-transform" />
-          </div>
-
-          {/* Card 3: Bestiário */}
-          <div
-            onClick={onOpenBestiary}
-            className="p-4 bg-[#1D1B14] border border-[#B08635]/50 hover:border-[#DFB56C] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#DFB56C]">BESTIÁRIO RPG</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Catálogo de Monstros</h4>
-            </div>
-            <Flame className="w-5 h-5 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-          </div>
-
-          {/* Card 4: Macros */}
-          <div
-            onClick={onOpenMacroManager}
-            className="p-4 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#DFB56C]">MACROS ARCANAS</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Rolagens Rápidas</h4>
-            </div>
-            <Zap className="w-5 h-5 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-          </div>
-        </div>
 
         {/* Active Character Quick Bar (if character is selected) */}
         {activeCharacter && (

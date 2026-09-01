@@ -26,7 +26,7 @@ export async function uploadCampaignMedia(file: File, campaignId?: string, album
   if (uploadError) throw uploadError;
   const { data, error } = await supabase
     .from("media_assets")
-    .insert({ owner_id: auth.user.id, campaign_id: campaignId ?? null, storage_path: storagePath, name: file.name, mime_type: file.type, size_bytes: file.size })
+    .insert({ owner_id: auth.user.id, campaign_id: campaignId ?? null, storage_path: storagePath, name: file.name, mime_type: file.type, size_bytes: file.size, album })
     .select()
     .single();
   if (error) {
@@ -48,4 +48,51 @@ export async function uploadCampaignMedia(file: File, campaignId?: string, album
     tags: [album.toLowerCase()],
     createdAt: new Date(data.created_at as string).getTime(),
   };
+}
+
+export async function loadUserMediaAssets(): Promise<MediaAsset[]> {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) throw new Error("Entre na sua conta para carregar suas imagens.");
+  const { data, error } = await supabase
+    .from("media_assets")
+    .select("id,owner_id,storage_path,name,mime_type,size_bytes,width,height,created_at,album")
+    .eq("owner_id", auth.user.id)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+
+  return Promise.all((data ?? []).map(async (row) => {
+    const { data: signed, error: signedError } = await supabase!.storage
+      .from("campaign-media")
+      .createSignedUrl(row.storage_path as string, 60 * 60 * 24);
+    if (signedError) throw signedError;
+    return {
+      id: row.id as string,
+      userId: row.owner_id as string,
+      name: (row.name as string).replace(/\.[^/.]+$/, ""),
+      album: row.album as MediaAlbumType,
+      originalUrl: signed.signedUrl,
+      thumbnailUrl: signed.signedUrl,
+      fileSizeBytes: Number(row.size_bytes),
+      dimensions: { width: Number(row.width || 0), height: Number(row.height || 0) },
+      mimeType: row.mime_type as string,
+      tags: [(row.album as string).toLowerCase()],
+      createdAt: new Date(row.created_at as string).getTime(),
+    } satisfies MediaAsset;
+  }));
+}
+
+export async function deleteUserMediaAsset(assetId: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { data, error } = await supabase
+    .from("media_assets")
+    .select("storage_path")
+    .eq("id", assetId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return;
+  const { error: storageError } = await supabase.storage.from("campaign-media").remove([data.storage_path as string]);
+  if (storageError) throw storageError;
+  const { error: deleteError } = await supabase.from("media_assets").delete().eq("id", assetId);
+  if (deleteError) throw deleteError;
 }

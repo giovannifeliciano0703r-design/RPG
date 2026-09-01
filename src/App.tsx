@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Dices,
   AlertCircle,
@@ -47,6 +47,9 @@ import {
   DEFAULT_MACROS,
   DEFAULT_NPC_FOLDERS,
   DEFAULT_NPCS,
+  DEFAULT_BATTLEMAP,
+  DEFAULT_INITIAL_CAMPAIGN,
+  DEFAULT_INITIATIVE_STATE,
 } from "./data/defaultAppData";
 
 import { executeMacro } from "./utils/macroEngine";
@@ -58,9 +61,11 @@ import { useMediaAssets } from "./hooks/useMediaAssets";
 import { ConfirmDialog } from "./components/ui/Dialog";
 import { STORAGE_KEYS } from "./constants/storageKeys";
 import { useLiveCampaign } from "./hooks/useLiveCampaign";
-import { uploadCampaignMedia } from "./services/supabaseMedia";
+import { deleteUserMediaAsset, loadUserMediaAssets, uploadCampaignMedia } from "./services/supabaseMedia";
 import { useCampaignWorkspace } from "./hooks/useCampaignWorkspace";
 import { useAppAuth } from "./hooks/useAppAuth";
+import { useSupabaseUserState } from "./hooks/useSupabaseUserState";
+import type { UserAppState } from "./services/supabaseUserState";
 import { supabase } from "./lib/supabase";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
@@ -200,6 +205,73 @@ export default function App() {
   const { currentUser, setCurrentUser, isAuthChecking, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
     onPreferredSystem: setActiveSystem,
   });
+  const currentUserId = currentUser?.id;
+
+  const applyUserAppState = useCallback((remote: Partial<UserAppState>) => {
+    if (remote.activeSystem) setActiveSystem(normalizeRpgSystem(remote.activeSystem));
+    if (remote.characters) {
+      const normalized = remote.characters.map((character) => ({ ...character, system: normalizeRpgSystem(character.system) }));
+      setCharacters(normalized);
+      setActiveCharacter(normalized[0] || null);
+      setEditingCharacter(null);
+      setIsCharacterSheetOpen(false);
+    }
+    if (remote.monsters) setMonsters(remote.monsters);
+    if (remote.macros) setMacros(remote.macros);
+    if (remote.npcFolders) setNpcFolders(remote.npcFolders);
+    if (remote.npcs) setNpcs(remote.npcs);
+    if (remote.campaigns) {
+      const normalized = remote.campaigns.map((campaign) => ({ ...campaign, system: normalizeRpgSystem(campaign.system) }));
+      setCampaigns(normalized);
+      setActiveCampaign(normalized[0] || null);
+    }
+    if (remote.campaignMessages) setCampaignMessages(remote.campaignMessages);
+    if (remote.battleMapData) setBattleMapData(remote.battleMapData);
+    if (remote.initiativeState) setInitiativeState(remote.initiativeState);
+  }, [setActiveCampaign, setCampaignMessages, setCampaigns, setBattleMapData, setInitiativeState]);
+
+  const createFreshUserAppState = useCallback((): UserAppState => ({
+    activeSystem: "Outro / não especificar",
+    characters: [],
+    monsters: DEFAULT_MONSTERS,
+    macros: DEFAULT_MACROS,
+    npcFolders: DEFAULT_NPC_FOLDERS,
+    npcs: DEFAULT_NPCS,
+    campaigns: [DEFAULT_INITIAL_CAMPAIGN],
+    campaignMessages: [],
+    battleMapData: DEFAULT_BATTLEMAP,
+    initiativeState: DEFAULT_INITIATIVE_STATE,
+  }), []);
+
+  const { isLoading: isUserStateLoading } = useSupabaseUserState({
+    userId: currentUserId,
+    state: {
+      activeSystem,
+      characters,
+      monsters,
+      macros,
+      npcFolders,
+      npcs,
+      campaigns,
+      campaignMessages,
+      battleMapData,
+      initiativeState,
+    },
+    applyState: applyUserAppState,
+    createFreshState: createFreshUserAppState,
+    onError: (message) => setStorageNotice(`Sincronização online: ${message}`),
+  });
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+    void loadUserMediaAssets()
+      .then((assets) => { if (!cancelled) saveMediaAssets(assets); })
+      .catch((cause) => {
+        if (!cancelled) setStorageNotice(`Biblioteca online: ${cause instanceof Error ? cause.message : "falha ao carregar imagens."}`);
+      });
+    return () => { cancelled = true; };
+  }, [currentUserId, saveMediaAssets]);
 
   const liveCampaign = useLiveCampaign({
     campaign: activeCampaign,
@@ -370,10 +442,10 @@ export default function App() {
     }
   };
 
-  if (isAuthChecking) {
+  if (isAuthChecking || (currentUser && isUserStateLoading)) {
     return (
       <div className="min-h-screen bg-[#12110C] text-[#DFB56C] flex items-center justify-center font-serif">
-        Validando sessão segura…
+        {isAuthChecking ? "Validando sessão segura…" : "Carregando seus dados online…"}
       </div>
     );
   }
@@ -656,20 +728,6 @@ export default function App() {
                 <span>HUB</span>
               </button>
 
-              <button
-                onClick={() => setIsMobileSystemOpen(true)}
-                title="Clique para escolher outro sistema de RPG"
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg active:scale-95 transition-all cursor-pointer shadow-xs group"
-              >
-                <span>{currentSystemMeta.icon}</span>
-                <span className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${currentSystemMeta.badgeBg}`}>
-                  {currentSystemMeta.abbrev}
-                </span>
-                <span className="hidden sm:inline font-medium text-[#D6CEBE] text-xs truncate max-w-[150px]">
-                  {currentSystemMeta.shortName}
-                </span>
-                <ChevronDown className="w-3 h-3 text-[#8A8270] group-hover:text-[#DFB56C] transition-colors" />
-              </button>
             </div>
 
             {/* Right: Quick Action Controls */}
@@ -702,12 +760,9 @@ export default function App() {
         {/* View Mode 0: HUB & SHORTCUTS DASHBOARD */}
         {activeView === "hub" && (
           <HubView
-            currentUser={currentUser}
             activeCharacter={activeCharacter}
             characters={characters}
-            activeSystem={activeSystem}
             onNavigateView={setActiveView}
-            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
             onOpenCharacterSheet={(char) => {
               if (char) {
                 setEditingCharacter(char);
@@ -751,8 +806,6 @@ export default function App() {
             onOpenNpcFolders={() => setIsNpcFoldersOpen(true)}
             onOpenCampaignManager={() => setIsCampaignOpen(true)}
             onOpenDiceRoller={() => setIsDiceOpen(true)}
-            onOpenSystemSelector={() => setIsMobileSystemOpen(true)}
-            onOpenProfile={() => setIsProfileOpen(true)}
           />
         )}
 
@@ -932,9 +985,17 @@ export default function App() {
         isOpen
         onClose={() => setIsMediaOpen(false)}
         assets={mediaAssets}
-        onSaveAssets={saveMediaAssets}
+        onSaveAssets={(nextAssets) => {
+          const removed = mediaAssets.filter((asset) => !nextAssets.some((next) => next.id === asset.id));
+          saveMediaAssets(nextAssets);
+          for (const asset of removed) {
+            void deleteUserMediaAsset(asset.id).catch((cause) => {
+              setStorageNotice(`Biblioteca online: ${cause instanceof Error ? cause.message : "falha ao excluir imagem."}`);
+            });
+          }
+        }}
         userId={currentUser.id}
-        onUploadFile={activeCampaign?.remoteId ? (file, album) => uploadCampaignMedia(file, activeCampaign.remoteId, album) : undefined}
+        onUploadFile={(file, album) => uploadCampaignMedia(file, activeCampaign?.remoteId, album)}
         onViewHdImage={(url, title) => setLightboxImage({ url, title })}
         />
       )}
