@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(23);
+select plan(25);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -21,6 +21,8 @@ select is((select count(*)::integer from pg_publication_tables where pubname='su
 select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='user_app_state'), 1, 'account state is realtime');
 select has_column('public', 'media_assets', 'thumbnail_path', 'media supports dedicated thumbnails');
 select has_trigger('public', 'media_assets', 'media_quota_before_write', 'media quota is enforced in the database');
+select has_trigger('public', 'campaign_messages', 'campaign_messages_rate_limit_before_insert', 'message spam limit is enforced in the database');
+select has_index('public', 'campaign_messages', 'campaign_messages_author_created_idx', 'message rate-limit lookup is indexed');
 
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
