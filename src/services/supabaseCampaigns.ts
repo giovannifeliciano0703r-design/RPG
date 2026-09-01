@@ -56,6 +56,31 @@ export async function createCampaignInvite(campaignId: string) {
   return data as string;
 }
 
+export type CampaignInviteRecord = {
+  id: string; code: string; expires_at: string; max_uses: number; uses: number; revoked_at: string | null;
+};
+
+export type CampaignAuditRecord = {
+  id: number; action: string; actor_id: string | null; target_user_id: string | null; metadata: Record<string, unknown>; created_at: string;
+};
+
+export async function loadCampaignManagementRecords(campaignId: string) {
+  if (!supabase) return { invites: [] as CampaignInviteRecord[], audit: [] as CampaignAuditRecord[] };
+  const [invitesResult, auditResult] = await Promise.all([
+    supabase.from("campaign_invites").select("id,code,expires_at,max_uses,uses,revoked_at").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(25),
+    supabase.from("audit_events").select("id,action,actor_id,target_user_id,metadata,created_at").eq("campaign_id", campaignId).order("created_at", { ascending: false }).limit(50),
+  ]);
+  if (invitesResult.error) throw invitesResult.error;
+  if (auditResult.error) throw auditResult.error;
+  return { invites: (invitesResult.data ?? []) as CampaignInviteRecord[], audit: (auditResult.data ?? []) as CampaignAuditRecord[] };
+}
+
+export async function revokeCampaignInvite(inviteId: string) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { error } = await supabase.rpc("revoke_campaign_invite", { target_invite: inviteId });
+  if (error) throw error;
+}
+
 export async function joinCampaignByInvite(code: string) {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data, error } = await supabase.rpc("join_campaign_by_invite", { invite_code: code.trim().toUpperCase() });

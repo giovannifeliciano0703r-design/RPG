@@ -13,6 +13,7 @@ import {
   Settings,
   Flame,
   LogOut,
+  History,
 } from "lucide-react";
 import { Campaign, CampaignMember, CampaignRole, CoGmPermissions, UserProfile } from "../../types";
 import { ConfirmDialog, NoticeDialog } from "../ui/Dialog";
@@ -21,9 +22,13 @@ import {
   createRemoteCampaign,
   joinCampaignByInvite,
   loadRemoteCampaign,
+  loadCampaignManagementRecords,
   removeRemoteCampaignMember,
+  revokeCampaignInvite,
   subscribeToCampaignRoster,
   updateRemoteMemberAccess,
+  type CampaignAuditRecord,
+  type CampaignInviteRecord,
 } from "../../services/supabaseCampaigns";
 import { supabase } from "../../lib/supabase";
 import { getCampaignPermissions } from "../../domain/campaignPermissions";
@@ -37,6 +42,15 @@ interface CampaignManagerModalProps {
   onSelectCampaign: (campaign: Campaign) => void;
   onSaveCampaigns: (campaigns: Campaign[]) => void;
 }
+
+const AUDIT_LABELS: Record<string, string> = {
+  "campaign.invite.created": "Convite criado",
+  "campaign.invite.revoked": "Convite revogado",
+  "campaign.member.joined": "Participante entrou",
+  "campaign.member.left": "Participante saiu",
+  "campaign.member.removed": "Participante removido",
+  "campaign.member.access_updated": "Papel ou permissões alterados",
+};
 
 export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   isOpen,
@@ -55,12 +69,15 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [memberRemoval, setMemberRemoval] = useState<CampaignMember | null>(null);
+  const [inviteRecords, setInviteRecords] = useState<CampaignInviteRecord[]>([]);
+  const [auditRecords, setAuditRecords] = useState<CampaignAuditRecord[]>([]);
   const campaignsRef = useRef(campaigns);
   const onSaveRef = useRef(onSaveCampaigns);
   const onSelectRef = useRef(onSelectCampaign);
   campaignsRef.current = campaigns;
   onSaveRef.current = onSaveCampaigns;
   onSelectRef.current = onSelectCampaign;
+  const campaignPermissions = getCampaignPermissions(activeCampaign, currentUser.id);
 
   const showError = (title: string, cause: unknown) => setNotice({
     title,
@@ -89,6 +106,17 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
     const channel = subscribeToCampaignRoster(remoteId, refresh);
     return () => { cancelled = true; window.clearTimeout(refreshTimer); if (channel) void supabase.removeChannel(channel); };
   }, [activeCampaign?.inviteCode, activeCampaign?.remoteId, isOpen, saveUpdatedCampaign]);
+
+  useEffect(() => {
+    const remoteId = activeCampaign?.remoteId;
+    const isManager = campaignPermissions.isOwner || activeCampaign?.members.some((member) => member.userId === currentUser.id && member.role === "CO_GM");
+    if (!isOpen || !remoteId || !isManager) { setInviteRecords([]); setAuditRecords([]); return; }
+    let cancelled = false;
+    void loadCampaignManagementRecords(remoteId).then((records) => {
+      if (!cancelled) { setInviteRecords(records.invites); setAuditRecords(records.audit); }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [activeCampaign?.members, activeCampaign?.remoteId, campaignPermissions.isOwner, currentUser.id, isOpen]);
 
   if (!isOpen) return null;
 
@@ -224,7 +252,16 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   };
 
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
-  const { canKickPlayers } = getCampaignPermissions(activeCampaign, currentUser.id);
+  const { canKickPlayers, canInvitePlayers } = campaignPermissions;
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    setIsWorking(true);
+    try {
+      await revokeCampaignInvite(inviteId);
+      setInviteRecords((previous) => previous.map((invite) => invite.id === inviteId ? { ...invite, revoked_at: new Date().toISOString() } : invite));
+    } catch (cause) { showError("Não foi possível revogar o convite", cause); }
+    finally { setIsWorking(false); }
+  };
 
   const handleRemoveMember = async () => {
     if (!activeCampaign?.remoteId || !memberRemoval) return;
@@ -505,6 +542,27 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {(campaignPermissions.isOwner || activeCampaign.members.some((member) => member.userId === currentUser.id && member.role === "CO_GM")) ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <section className="p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl space-y-2" aria-labelledby="invite-history-title">
+                      <h4 id="invite-history-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase">Convites recentes</h4>
+                      {inviteRecords.length === 0 ? <p className="text-xs text-[#A79C82]">Nenhum convite registrado.</p> : inviteRecords.map((invite) => {
+                        const inactive = Boolean(invite.revoked_at) || new Date(invite.expires_at).getTime() <= Date.now() || invite.uses >= invite.max_uses;
+                        return <div key={invite.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#38352A] p-2 text-[11px]">
+                          <div><strong className="font-mono text-[#EFE8D8]">{invite.code}</strong><p className="text-[#A79C82]">{invite.uses}/{invite.max_uses} usos • {inactive ? "inativo" : `vence em ${new Date(invite.expires_at).toLocaleDateString()}`}</p></div>
+                          {!inactive && canInvitePlayers ? <button type="button" disabled={isWorking} onClick={() => void handleRevokeInvite(invite.id)} className="text-[#C4645A] disabled:opacity-50">Revogar</button> : null}
+                        </div>;
+                      })}
+                    </section>
+                    <section className="p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl space-y-2" aria-labelledby="audit-title">
+                      <h4 id="audit-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> Atividade de segurança</h4>
+                      <div className="max-h-56 overflow-y-auto space-y-1.5">
+                        {auditRecords.length === 0 ? <p className="text-xs text-[#A79C82]">Nenhuma atividade registrada.</p> : auditRecords.map((event) => <div key={event.id} className="rounded-lg border border-[#38352A] p-2 text-[11px]"><strong className="text-[#EFE8D8]">{AUDIT_LABELS[event.action] || event.action}</strong><p className="text-[#A79C82]">{new Date(event.created_at).toLocaleString()}</p></div>)}
+                      </div>
+                    </section>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#A79C82]">
