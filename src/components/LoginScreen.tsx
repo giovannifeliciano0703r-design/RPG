@@ -131,6 +131,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
+  const handlePasswordRecovery = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    if (!email.trim() || !email.includes("@")) {
+      setErrorMessage("Informe o e-mail da conta para recuperar a senha.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (!supabase) throw new Error("O cadastro online ainda não foi configurado.");
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/`,
+      });
+      if (error) throw error;
+      setSuccessMessage("Se existir uma conta com esse e-mail, enviaremos as instruções de recuperação.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Não foi possível enviar a recuperação.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-[#12110C] text-[#EFE8D8] flex flex-col justify-between relative overflow-x-hidden selection:bg-[#7A2E27] selection:text-white">
       {/* Background Arcane Atmosphere Grid & Glows */}
@@ -278,6 +300,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={handlePasswordRecovery}
+                    disabled={isLoading}
+                    className="text-[11px] font-mono text-[#DFB56C] hover:text-[#EFE8D8] underline underline-offset-4 disabled:opacity-50"
+                  >
+                    Esqueci minha senha
+                  </button>
                 </div>
 
                 <p className="text-[#8A8270] text-[10px] font-mono pt-1">

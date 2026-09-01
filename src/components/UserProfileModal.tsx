@@ -12,9 +12,12 @@ import {
   Check,
   Flame,
   Sparkles,
+  KeyRound,
+  MonitorX,
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
+import { supabase } from "../lib/supabase";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -46,6 +49,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [favoriteSystem, setFavoriteSystem] = useState(user.favoriteSystem || "Dungeons & Dragons (D&D)");
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "wizard");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [isAccountBusy, setIsAccountBusy] = useState(false);
 
   if (!isOpen) return null;
 
@@ -74,6 +81,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const CurrentAvatarIcon = getAvatarIcon(selectedAvatar);
+
+  const changePassword = async () => {
+    setAccountError(""); setAccountMessage("");
+    if (newPassword.length < 8) return setAccountError("A nova senha precisa ter pelo menos 8 caracteres.");
+    setIsAccountBusy(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      setNewPassword("");
+      setAccountMessage("Senha alterada com segurança.");
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível alterar a senha."); }
+    finally { setIsAccountBusy(false); }
+  };
+
+  const closeOtherSessions = async () => {
+    setAccountError(""); setAccountMessage(""); setIsAccountBusy(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { error } = await supabase.auth.signOut({ scope: "others" });
+      if (error) throw error;
+      setAccountMessage("As outras sessões foram encerradas. Este aparelho continua conectado.");
+    } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível encerrar as sessões."); }
+    finally { setIsAccountBusy(false); }
+  };
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Perfil do usuário" className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs animate-fade-in">
@@ -187,6 +219,31 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               })}
             </div>
           </div>
+
+          <section className="rounded-xl border border-[#38352A] bg-[#15140F] p-3 space-y-3" aria-labelledby="account-security-title">
+            <h3 id="account-security-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">Segurança da conta</h3>
+            {accountError && <p role="alert" className="text-xs text-[#C4645A]">{accountError}</p>}
+            {accountMessage && <p role="status" className="text-xs text-[#8DAE8F]">{accountMessage}</p>}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label className="sr-only" htmlFor="profile-new-password">Nova senha</label>
+              <input
+                id="profile-new-password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder="Nova senha (mínimo 8 caracteres)"
+                className="flex-1 bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
+              />
+              <button type="button" disabled={isAccountBusy || newPassword.length < 8} onClick={changePassword} className="px-3 py-2 border border-[#DFB56C]/50 rounded-lg text-xs text-[#DFB56C] disabled:opacity-50 flex items-center justify-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5" /> Alterar senha
+              </button>
+            </div>
+            <button type="button" disabled={isAccountBusy} onClick={closeOtherSessions} className="w-full px-3 py-2 border border-[#38352A] rounded-lg text-xs text-[#A79C82] hover:text-[#EFE8D8] disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <MonitorX className="w-3.5 h-3.5" /> Encerrar sessões em outros aparelhos
+            </button>
+          </section>
 
           {/* Action buttons */}
           <div className="pt-2 flex items-center gap-2">
