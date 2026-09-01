@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isSupabaseConfigured } from "../lib/supabase";
-import { loadUserAppState, saveUserAppState, type UserAppState } from "../services/supabaseUserState";
+import { loadUserAppState, saveUserAppState, UserAppStateConflictError, type UserAppState } from "../services/supabaseUserState";
 
 const CACHE_OWNER_KEY = "mestre_arcano_cache_owner:v1";
 
@@ -20,6 +20,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   const applyStateRef = useRef(applyState);
   const createFreshStateRef = useRef(createFreshState);
   const onErrorRef = useRef(onError);
+  const revisionsRef = useRef<Record<string, number>>({});
   stateRef.current = state;
   applyStateRef.current = applyState;
   createFreshStateRef.current = createFreshState;
@@ -37,10 +38,11 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
     setIsLoading(true);
     setIsSynced(false);
     void loadUserAppState(userId)
-      .then(async (remoteState) => {
+      .then(async ({ state: remoteState, revisions }) => {
         if (cancelled) return;
         const hasRemoteState = Object.keys(remoteState).length > 0;
         if (hasRemoteState) {
+          revisionsRef.current = revisions;
           applyStateRef.current(remoteState);
         } else {
           const cachedOwner = localStorage.getItem(CACHE_OWNER_KEY);
@@ -48,7 +50,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
             ? stateRef.current
             : createFreshStateRef.current();
           if (cachedOwner && cachedOwner !== userId) applyStateRef.current(initialState);
-          await saveUserAppState(userId, initialState);
+          revisionsRef.current = await saveUserAppState(userId, initialState);
         }
         if (cancelled) return;
         localStorage.setItem(CACHE_OWNER_KEY, userId);
@@ -67,9 +69,16 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
     if (!userId || hydratedUserRef.current !== userId) return;
     setIsSynced(false);
     const timer = window.setTimeout(() => {
-      void saveUserAppState(userId, stateRef.current)
-        .then(() => setIsSynced(true))
-        .catch((cause) => onErrorRef.current(cause instanceof Error ? cause.message : "Falha ao salvar seus dados online."));
+      void saveUserAppState(userId, stateRef.current, revisionsRef.current)
+        .then((revisions) => { revisionsRef.current = revisions; setIsSynced(true); })
+        .catch(async (cause) => {
+          if (cause instanceof UserAppStateConflictError) {
+            const latest = await loadUserAppState(userId);
+            revisionsRef.current = latest.revisions;
+            applyStateRef.current(latest.state);
+          }
+          onErrorRef.current(cause instanceof Error ? cause.message : "Falha ao salvar seus dados online.");
+        });
     }, 900);
     return () => window.clearTimeout(timer);
   }, [

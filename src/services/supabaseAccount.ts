@@ -8,7 +8,7 @@ export async function exportMyAccountData() {
   const userId = auth.user.id;
   const [profile, state, media, memberships, ownedCampaigns] = await Promise.all([
     supabase.from("profiles").select("id,display_name,avatar_url,created_at,updated_at").eq("id", userId).maybeSingle(),
-    supabase.from("user_app_state").select("section,payload,revision,updated_at").eq("user_id", userId),
+    supabase.from("user_app_state").select("state_key,payload,revision,updated_at").eq("user_id", userId),
     supabase.from("media_assets").select("id,campaign_id,name,mime_type,size_bytes,width,height,album,created_at").eq("owner_id", userId),
     supabase.from("campaign_members").select("campaign_id,role,permissions,joined_at").eq("user_id", userId),
     supabase.from("campaigns").select("id,name,description,system,visibility,created_at,updated_at").eq("owner_id", userId),
