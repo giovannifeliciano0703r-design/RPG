@@ -28,6 +28,7 @@ interface HubViewProps {
   onNavigateView: (view: "vtt" | "hub") => void;
   onOpenCharacterSheet: (character?: CharacterSheet) => void;
   onDeleteCharacter: (character: CharacterSheet) => void;
+  onOpenTrash: () => void;
   onOpenBestiary: () => void;
   onOpenMacroManager: () => void;
   onOpenMediaLibrary: () => void;
@@ -42,6 +43,7 @@ export const HubView: React.FC<HubViewProps> = ({
   onNavigateView,
   onOpenCharacterSheet,
   onDeleteCharacter,
+  onOpenTrash,
   onOpenBestiary,
   onOpenMacroManager,
   onOpenMediaLibrary,
@@ -162,7 +164,7 @@ export const HubView: React.FC<HubViewProps> = ({
               <h3 id="character-list-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">
                 Minhas fichas ({characters.length})
               </h3>
-              <span className="text-[10px] text-[#A79C82]">Selecione uma ficha para abrir</span>
+              <button type="button" onClick={onOpenTrash} className="flex items-center gap-1 text-[10px] text-[#A79C82] hover:text-[#DFB56C]" title="Abrir lixeira de fichas"><Trash2 className="h-3 w-3" /> Lixeira</button>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {characters.map((character) => {

@@ -66,6 +66,7 @@ import { useAppAuth } from "./hooks/useAppAuth";
 import { useSupabaseUserState } from "./hooks/useSupabaseUserState";
 import type { UserAppState } from "./services/supabaseUserState";
 import { supabase } from "./lib/supabase";
+import { trashCharacter } from "./services/supabaseTrash";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -80,6 +81,7 @@ const CampaignDualChat = React.lazy(() => import("./components/campaign/Campaign
 const BattlemapCanvas = React.lazy(() => import("./components/vtt/BattlemapCanvas").then((module) => ({ default: module.BattlemapCanvas })));
 const InitiativeTrackerBar = React.lazy(() => import("./components/vtt/InitiativeTrackerBar").then((module) => ({ default: module.InitiativeTrackerBar })));
 const SystemSelectorModal = React.lazy(() => import("./components/SystemSelectorModal").then((module) => ({ default: module.SystemSelectorModal })));
+const CharacterTrashModal = React.lazy(() => import("./components/character/CharacterTrashModal").then((module) => ({ default: module.CharacterTrashModal })));
 
 const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; icon: string }> = {
   "Dungeons & Dragons (D&D)": { short: "D&D 5e", subtitle: "D20 • Fantasia Medieval", icon: "⚔️" },
@@ -190,6 +192,7 @@ export default function App() {
   const [isDiceOpen, setIsDiceOpen] = useState(false);
   const [isMobileSystemOpen, setIsMobileSystemOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCharacterTrashOpen, setIsCharacterTrashOpen] = useState(false);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     title: string;
@@ -793,9 +796,13 @@ export default function App() {
             onDeleteCharacter={(character) => {
               setPendingConfirmation({
                 title: "Excluir ficha de personagem?",
-                description: `A ficha de ${character.name} será excluída permanentemente deste navegador. Esta ação não pode ser desfeita.`,
-                confirmLabel: "Excluir ficha",
-                onConfirm: () => {
+                description: `A ficha de ${character.name} será movida para a lixeira online por 30 dias.`,
+                confirmLabel: "Mover para lixeira",
+                onConfirm: async () => {
+                  try { await trashCharacter(character); } catch (error) {
+                    setStorageNotice(error instanceof Error ? error.message : "Não foi possível mover a ficha para a lixeira.");
+                    setPendingConfirmation(null); return;
+                  }
                   setCharacters((previous) => {
                     const remaining = previous.filter((item) => item.id !== character.id);
                     setActiveCharacter((current) => current?.id === character.id ? remaining[0] || null : current);
@@ -807,6 +814,7 @@ export default function App() {
                 },
               });
             }}
+            onOpenTrash={() => setIsCharacterTrashOpen(true)}
             onOpenBestiary={() => setIsBestiaryOpen(true)}
             onOpenMacroManager={() => setIsMacroOpen(true)}
             onOpenMediaLibrary={() => setIsMediaOpen(true)}
@@ -940,6 +948,19 @@ export default function App() {
       <React.Suspense fallback={<div role="status" className="fixed bottom-4 right-4 z-[110] rounded-xl bg-[#1D1B14] px-4 py-2 text-xs text-[#DFB56C] shadow-xl">Carregando módulo…</div>}>
 
       {/* 1. Character Sheet Modal */}
+      {isCharacterTrashOpen && (
+        <React.Suspense fallback={null}>
+          <CharacterTrashModal
+            isOpen
+            onClose={() => setIsCharacterTrashOpen(false)}
+            onRestore={(character) => {
+              setCharacters((previous) => previous.some((item) => item.id === character.id) ? previous : [character, ...previous]);
+              setActiveCharacter(character);
+            }}
+          />
+        </React.Suspense>
+      )}
+
       {isCharacterSheetOpen && editingCharacter && (
         <CharacterSheetModal
           isOpen
