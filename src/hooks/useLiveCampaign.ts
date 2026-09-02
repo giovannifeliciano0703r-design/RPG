@@ -54,7 +54,9 @@ export function useLiveCampaign(options: Options) {
   const { campaign, user, battlemap, initiative, setCampaign, setMessages, setBattlemap, setInitiative } = options;
   const [status, setStatus] = useState<"offline" | "connecting" | "online" | "error">("offline");
   const [error, setError] = useState<string | null>(null);
-  const applyingRemoteRef = useRef(false);
+  const [hydratedRemoteId, setHydratedRemoteId] = useState<string | null>(null);
+  const receivedRemoteMapRef = useRef<BattleMapData | null>(null);
+  const receivedRemoteInitiativeRef = useRef<InitiativeState | null>(null);
   const revisionsRef = useRef<Record<string, number>>({ battlemap: 0, initiative: 0 });
   const remoteId = campaign?.remoteId;
   const { canEditMaps, canManageInitiative } = getCampaignPermissions(campaign, user?.id);
@@ -78,6 +80,7 @@ export function useLiveCampaign(options: Options) {
     const client = supabase;
     if (!remoteId || !client) return;
     let cancelled = false;
+    setHydratedRemoteId(null);
     setStatus("connecting");
     void Promise.all([
       loadCampaignMessages(remoteId),
@@ -85,11 +88,18 @@ export function useLiveCampaign(options: Options) {
       loadCampaignState<InitiativeState>(remoteId, "initiative"),
     ]).then(([remoteMessages, remoteMap, remoteInitiative]) => {
       if (cancelled) return;
-      applyingRemoteRef.current = true;
       if (remoteMessages.length) setMessages(remoteMessages.map((message) => toChatMessage(message, user)));
-      if (remoteMap) { revisionsRef.current.battlemap = remoteMap.revision; setBattlemap(remoteMap.payload); }
-      if (remoteInitiative) { revisionsRef.current.initiative = remoteInitiative.revision; setInitiative(remoteInitiative.payload); }
-      queueMicrotask(() => { applyingRemoteRef.current = false; });
+      if (remoteMap) {
+        revisionsRef.current.battlemap = remoteMap.revision;
+        receivedRemoteMapRef.current = remoteMap.payload;
+        setBattlemap(remoteMap.payload);
+      }
+      if (remoteInitiative) {
+        revisionsRef.current.initiative = remoteInitiative.revision;
+        receivedRemoteInitiativeRef.current = remoteInitiative.payload;
+        setInitiative(remoteInitiative.payload);
+      }
+      setHydratedRemoteId(remoteId);
       setStatus("online");
     }).catch((cause) => {
       if (!cancelled) { setStatus("error"); setError(cause instanceof Error ? cause.message : "Falha na sincronização."); }
@@ -98,11 +108,15 @@ export function useLiveCampaign(options: Options) {
       setMessages((previous) => previous.some((item) => item.id === message.id) ? previous : [...previous, toChatMessage(message, user)]);
     });
     const stateChannel = subscribeToCampaignState(remoteId, (key, payload, revision) => {
-      applyingRemoteRef.current = true;
       revisionsRef.current[key] = revision;
-      if (key === "battlemap") setBattlemap(payload as BattleMapData);
-      if (key === "initiative") setInitiative(payload as InitiativeState);
-      queueMicrotask(() => { applyingRemoteRef.current = false; });
+      if (key === "battlemap") {
+        receivedRemoteMapRef.current = payload as BattleMapData;
+        setBattlemap(payload as BattleMapData);
+      }
+      if (key === "initiative") {
+        receivedRemoteInitiativeRef.current = payload as InitiativeState;
+        setInitiative(payload as InitiativeState);
+      }
     });
     return () => {
       cancelled = true;
@@ -112,34 +126,50 @@ export function useLiveCampaign(options: Options) {
   }, [remoteId, setBattlemap, setInitiative, setMessages, user]);
 
   useEffect(() => {
-    if (!remoteId || applyingRemoteRef.current || !canEditMaps) return;
+    if (!remoteId || hydratedRemoteId !== remoteId || !canEditMaps) return;
+    if (battlemap === receivedRemoteMapRef.current) {
+      receivedRemoteMapRef.current = null;
+      return;
+    }
     const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap, revisionsRef.current.battlemap)
       .then((revision) => { revisionsRef.current.battlemap = revision; setStatus("online"); })
       .catch(async (cause) => {
         setStatus("error");
         if (cause instanceof CampaignStateConflictError) {
           const latest = await loadCampaignState<BattleMapData>(remoteId, "battlemap");
-          if (latest) { revisionsRef.current.battlemap = latest.revision; setBattlemap(latest.payload); }
+          if (latest) {
+            revisionsRef.current.battlemap = latest.revision;
+            receivedRemoteMapRef.current = latest.payload;
+            setBattlemap(latest.payload);
+          }
           setError(cause.message);
         } else setError(cause instanceof Error ? cause.message : "Falha ao salvar o mapa.");
       }), 900);
     return () => window.clearTimeout(timer);
-  }, [battlemap, canEditMaps, remoteId, setBattlemap]);
+  }, [battlemap, canEditMaps, hydratedRemoteId, remoteId, setBattlemap]);
 
   useEffect(() => {
-    if (!remoteId || applyingRemoteRef.current || !canManageInitiative) return;
+    if (!remoteId || hydratedRemoteId !== remoteId || !canManageInitiative) return;
+    if (initiative === receivedRemoteInitiativeRef.current) {
+      receivedRemoteInitiativeRef.current = null;
+      return;
+    }
     const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative, revisionsRef.current.initiative)
       .then((revision) => { revisionsRef.current.initiative = revision; setStatus("online"); })
       .catch(async (cause) => {
         setStatus("error");
         if (cause instanceof CampaignStateConflictError) {
           const latest = await loadCampaignState<InitiativeState>(remoteId, "initiative");
-          if (latest) { revisionsRef.current.initiative = latest.revision; setInitiative(latest.payload); }
+          if (latest) {
+            revisionsRef.current.initiative = latest.revision;
+            receivedRemoteInitiativeRef.current = latest.payload;
+            setInitiative(latest.payload);
+          }
           setError(cause.message);
         } else setError(cause instanceof Error ? cause.message : "Falha ao salvar a iniciativa.");
       }), 700);
     return () => window.clearTimeout(timer);
-  }, [canManageInitiative, initiative, remoteId, setInitiative]);
+  }, [canManageInitiative, hydratedRemoteId, initiative, remoteId, setInitiative]);
 
   const sendMessage = useCallback(async (message: Partial<ChatMessage>) => {
     if (!remoteId) return false;
@@ -157,5 +187,5 @@ export function useLiveCampaign(options: Options) {
     }
   }, [remoteId, setMessages, user]);
 
-  return { status, error, clearError: () => setError(null), sendMessage };
+  return { status, error, isReady: hydratedRemoteId === remoteId && Boolean(remoteId), clearError: () => setError(null), sendMessage };
 }

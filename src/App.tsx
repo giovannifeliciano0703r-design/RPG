@@ -912,7 +912,7 @@ export default function App() {
                     combatants: [...prev.combatants, newInit].sort((a, b) => b.initiativeRoll - a.initiativeRoll),
                   }));
                 }}
-                isGm={canManageInitiative}
+                isGm={canManageInitiative && liveCampaign.isReady}
               />
               </React.Suspense>
 
@@ -921,7 +921,7 @@ export default function App() {
               <BattlemapCanvas
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
-                isGm={canEditMaps}
+                isGm={canEditMaps && liveCampaign.isReady}
                 currentUser={currentUser}
                 characters={characters}
                 activeCharacter={activeCharacter}
