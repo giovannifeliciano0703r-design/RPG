@@ -23,6 +23,7 @@ import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { toUserProfile } from "../auth/supabaseAuth";
 import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
 import { CURRENT_PRIVACY_VERSION } from "../constants/compliance";
+import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, getDisplayNameError, normalizeDisplayName } from "../utils/displayName";
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
@@ -128,10 +129,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!name.trim()) {
-      setErrorMessage("Informe o nome do seu Aventureiro ou Mestre.");
-      return;
-    }
+    const displayNameError = getDisplayNameError(name);
+    if (displayNameError) return setErrorMessage(displayNameError);
     if (!email.trim() || !email.includes("@")) {
       setErrorMessage("Informe um endereço de e-mail válido.");
       return;
@@ -154,7 +153,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { display_name: name.trim(), avatar: selectedAvatar, accepted_terms: true, privacy_version: CURRENT_PRIVACY_VERSION } },
+        options: { data: { display_name: normalizeDisplayName(name), avatar: selectedAvatar, accepted_terms: true, privacy_version: CURRENT_PRIVACY_VERSION } },
       });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível criar a conta.");
@@ -398,6 +397,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       type="text"
                       autoComplete="name"
                       required
+                      minLength={DISPLAY_NAME_MIN_LENGTH}
+                      maxLength={DISPLAY_NAME_MAX_LENGTH}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Como você quer ser chamado"

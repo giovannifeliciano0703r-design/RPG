@@ -24,6 +24,7 @@ import { supabase, verifyAccountPassword } from "../lib/supabase";
 import { deleteMyAccount, downloadAccountExport, exportMyAccountData } from "../services/supabaseAccount";
 import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
 import { ConfirmDialog } from "./ui/Dialog";
+import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, getDisplayNameError, normalizeDisplayName } from "../utils/displayName";
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -86,9 +87,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileError("");
+    const displayNameError = getDisplayNameError(name);
+    if (displayNameError) return setProfileError(displayNameError);
     const updated: UserProfile = {
       ...user,
-      name: name.trim() || user.name,
+      name: normalizeDisplayName(name),
       role: isAdmin ? user.role : role === "Administrador (ADM)" ? "Mestre da Mesa" : role,
       isAdmin: isAdmin,
       favoriteSystem,
@@ -242,6 +245,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               id="profile-display-name"
               type="text"
               required
+              minLength={DISPLAY_NAME_MIN_LENGTH}
+              maxLength={DISPLAY_NAME_MAX_LENGTH}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3.5 text-sm text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
