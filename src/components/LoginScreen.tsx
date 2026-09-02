@@ -21,6 +21,7 @@ import {
 import { UserProfile } from "../types";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { toUserProfile } from "../auth/supabaseAuth";
+import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
@@ -134,10 +135,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setErrorMessage("Informe um endereço de e-mail válido.");
       return;
     }
-    if (password.length < 8) {
-      setErrorMessage("Crie uma senha com pelo menos 8 caracteres.");
-      return;
-    }
+    const passwordPolicyError = getPasswordPolicyError(password);
+    if (passwordPolicyError) return setErrorMessage(passwordPolicyError);
     if (password !== confirmPassword) {
       setErrorMessage("As senhas não coincidem.");
       return;
@@ -438,11 +437,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
-                      minLength={8}
+                      minLength={PASSWORD_MIN_LENGTH}
+                      maxLength={PASSWORD_MAX_LENGTH}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       aria-describedby="password-help"
-                      placeholder="Mínimo de 8 caracteres"
+                      placeholder={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres`}
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-10 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors font-mono"
                     />
                     <button
@@ -455,8 +455,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p id="password-help" className={`mt-1.5 text-[10px] font-mono ${password.length >= 8 ? "text-[#8DAE8F]" : "text-[#A79C82]"}`}>
-                    {password.length >= 8 ? "✓ Senha com tamanho mínimo" : "Use pelo menos 8 caracteres"}
+                  <p id="password-help" className={`mt-1.5 text-[10px] font-mono ${isPasswordPolicySatisfied(password) ? "text-[#8DAE8F]" : "text-[#A79C82]"}`}>
+                    {isPasswordPolicySatisfied(password) ? "✓ Senha com tamanho seguro" : `Use de ${PASSWORD_MIN_LENGTH} a ${PASSWORD_MAX_LENGTH} caracteres`}
                   </p>
                 </div>
 
@@ -521,7 +521,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                 <button
                   type="submit"
-                  disabled={isLoading || password.length < 8 || password !== confirmPassword || !acceptedTerms}
+                  disabled={isLoading || !isPasswordPolicySatisfied(password) || password !== confirmPassword || !acceptedTerms}
                   className="w-full min-h-[48px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-serif font-bold text-base rounded-xl shadow-lg shadow-[#7A2E27]/30 flex items-center justify-center gap-2 transition-all cursor-pointer mt-3 disabled:opacity-50"
                 >
                   {isLoading ? (

@@ -22,6 +22,7 @@ import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
 import { supabase, verifyAccountPassword } from "../lib/supabase";
 import { deleteMyAccount, downloadAccountExport, exportMyAccountData } from "../services/supabaseAccount";
+import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
 import { ConfirmDialog } from "./ui/Dialog";
 
 interface UserProfileModalProps {
@@ -114,7 +115,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const changePassword = async () => {
     setAccountError(""); setAccountMessage("");
     if (!currentPassword) return setAccountError("Informe sua senha atual.");
-    if (newPassword.length < 10) return setAccountError("A nova senha precisa ter pelo menos 10 caracteres.");
+    const passwordPolicyError = getPasswordPolicyError(newPassword);
+    if (passwordPolicyError) return setAccountError(passwordPolicyError);
     if (newPassword !== confirmNewPassword) return setAccountError("A confirmação da nova senha não confere.");
     if (currentPassword === newPassword) return setAccountError("Escolha uma senha diferente da atual.");
     setIsAccountBusy(true);
@@ -335,10 +337,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 id="profile-new-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Nova senha (mínimo 10 caracteres)"
+                placeholder={`Nova senha (mínimo ${PASSWORD_MIN_LENGTH} caracteres)`}
                 className="bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
               />
               <label className="sr-only" htmlFor="profile-confirm-new-password">Confirmar nova senha</label>
@@ -346,14 +349,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 id="profile-confirm-new-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={10}
+                minLength={PASSWORD_MIN_LENGTH}
+                maxLength={PASSWORD_MAX_LENGTH}
                 value={confirmNewPassword}
                 onChange={(event) => setConfirmNewPassword(event.target.value)}
                 aria-invalid={confirmNewPassword.length > 0 && confirmNewPassword !== newPassword}
                 placeholder="Repita a nova senha"
                 className="bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] aria-invalid:border-[#C4645A]"
               />
-              <button type="button" disabled={isAccountBusy || !currentPassword || newPassword.length < 10 || newPassword !== confirmNewPassword} onClick={changePassword} className="px-3 py-2 border border-[#DFB56C]/50 rounded-lg text-xs text-[#DFB56C] disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <button type="button" disabled={isAccountBusy || !currentPassword || !isPasswordPolicySatisfied(newPassword) || newPassword !== confirmNewPassword} onClick={changePassword} className="px-3 py-2 border border-[#DFB56C]/50 rounded-lg text-xs text-[#DFB56C] disabled:opacity-50 flex items-center justify-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5" /> Alterar senha
               </button>
             </div>
