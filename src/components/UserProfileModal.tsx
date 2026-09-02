@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { UserProfile, RpgSystem, UserRole, isUserAdmin } from "../types";
 import { RPG_SYSTEMS } from "../domain/rpgSystems";
-import { supabase } from "../lib/supabase";
+import { supabase, verifyAccountPassword } from "../lib/supabase";
 import { deleteMyAccount, downloadAccountExport, exportMyAccountData } from "../services/supabaseAccount";
 import { ConfirmDialog } from "./ui/Dialog";
 
@@ -54,7 +54,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [favoriteSystem, setFavoriteSystem] = useState(user.favoriteSystem || "Dungeons & Dragons (D&D)");
   const [selectedAvatar, setSelectedAvatar] = useState(user.avatar || "wizard");
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [accountMessage, setAccountMessage] = useState("");
   const [accountError, setAccountError] = useState("");
   const [isAccountBusy, setIsAccountBusy] = useState(false);
@@ -111,14 +113,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   const changePassword = async () => {
     setAccountError(""); setAccountMessage("");
-    if (newPassword.length < 8) return setAccountError("A nova senha precisa ter pelo menos 8 caracteres.");
+    if (!currentPassword) return setAccountError("Informe sua senha atual.");
+    if (newPassword.length < 10) return setAccountError("A nova senha precisa ter pelo menos 10 caracteres.");
+    if (newPassword !== confirmNewPassword) return setAccountError("A confirmação da nova senha não confere.");
+    if (currentPassword === newPassword) return setAccountError("Escolha uma senha diferente da atual.");
     setIsAccountBusy(true);
     try {
       if (!supabase) throw new Error("Supabase não está configurado.");
+      if (!await verifyAccountPassword(user.email, currentPassword)) throw new Error("A senha atual não está correta.");
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      setNewPassword("");
-      setAccountMessage("Senha alterada com segurança.");
+      setCurrentPassword(""); setNewPassword(""); setConfirmNewPassword("");
+      setAccountMessage("Senha alterada com segurança. Encerre outras sessões se não reconhecer algum acesso.");
     } catch (error) { setAccountError(error instanceof Error ? error.message : "Não foi possível alterar a senha."); }
     finally { setIsAccountBusy(false); }
   };
@@ -308,19 +314,41 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <h3 id="account-security-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">Segurança da conta</h3>
             {accountError && <p role="alert" className="text-xs text-[#C4645A]">{accountError}</p>}
             {accountMessage && <p role="status" className="text-xs text-[#8DAE8F]">{accountMessage}</p>}
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="sr-only" htmlFor="profile-current-password">Senha atual</label>
+              <input
+                id="profile-current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder="Senha atual"
+                className="bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
+              />
               <label className="sr-only" htmlFor="profile-new-password">Nova senha</label>
               <input
                 id="profile-new-password"
                 type="password"
                 autoComplete="new-password"
-                minLength={8}
+                minLength={10}
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Nova senha (mínimo 8 caracteres)"
-                className="flex-1 bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
+                placeholder="Nova senha (mínimo 10 caracteres)"
+                className="bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]"
               />
-              <button type="button" disabled={isAccountBusy || newPassword.length < 8} onClick={changePassword} className="px-3 py-2 border border-[#DFB56C]/50 rounded-lg text-xs text-[#DFB56C] disabled:opacity-50 flex items-center justify-center gap-1.5">
+              <label className="sr-only" htmlFor="profile-confirm-new-password">Confirmar nova senha</label>
+              <input
+                id="profile-confirm-new-password"
+                type="password"
+                autoComplete="new-password"
+                minLength={10}
+                value={confirmNewPassword}
+                onChange={(event) => setConfirmNewPassword(event.target.value)}
+                aria-invalid={confirmNewPassword.length > 0 && confirmNewPassword !== newPassword}
+                placeholder="Repita a nova senha"
+                className="bg-[#1D1B14] border border-[#38352A] rounded-lg px-3 py-2 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] aria-invalid:border-[#C4645A]"
+              />
+              <button type="button" disabled={isAccountBusy || !currentPassword || newPassword.length < 10 || newPassword !== confirmNewPassword} onClick={changePassword} className="px-3 py-2 border border-[#DFB56C]/50 rounded-lg text-xs text-[#DFB56C] disabled:opacity-50 flex items-center justify-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5" /> Alterar senha
               </button>
             </div>
