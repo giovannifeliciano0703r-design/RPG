@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(43);
+select plan(46);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -26,6 +26,9 @@ select has_trigger('public', 'campaign_messages', 'campaign_messages_rate_limit_
 select has_index('public', 'campaign_messages', 'campaign_messages_author_created_idx', 'message rate-limit lookup is indexed');
 select has_column('public', 'campaign_messages', 'message_type', 'online chat preserves message types');
 select has_column('public', 'campaign_messages', 'metadata', 'online chat preserves bounded presentation metadata');
+select has_check('public', 'campaign_messages', 'campaign_messages_metadata_shape', 'online chat metadata is validated in the database');
+select is(public.is_valid_campaign_message_metadata('{"senderName":"Eldrin","rollData":{"formula":"1d20","total":15,"rolls":[15]}}'::jsonb), true, 'valid rich chat metadata is accepted');
+select is(public.is_valid_campaign_message_metadata('{"imageUrl":"javascript:alert(1)"}'::jsonb), false, 'unsafe rich chat metadata is rejected');
 
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
