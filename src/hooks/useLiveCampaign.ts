@@ -58,6 +58,8 @@ export function useLiveCampaign(options: Options) {
   const receivedRemoteMapRef = useRef<BattleMapData | null>(null);
   const receivedRemoteInitiativeRef = useRef<InitiativeState | null>(null);
   const revisionsRef = useRef<Record<string, number>>({ battlemap: 0, initiative: 0 });
+  const dataLoadedRef = useRef(false);
+  const realtimeReadyRef = useRef({ messages: false, state: false });
   const remoteId = campaign?.remoteId;
   const { canEditMaps, canManageInitiative } = getCampaignPermissions(campaign, user?.id);
 
@@ -80,8 +82,23 @@ export function useLiveCampaign(options: Options) {
     const client = supabase;
     if (!remoteId || !client) return;
     let cancelled = false;
+    dataLoadedRef.current = false;
+    realtimeReadyRef.current = { messages: false, state: false };
     setHydratedRemoteId(null);
     setStatus("connecting");
+    const handleChannelStatus = (channel: "messages" | "state", channelStatus: string) => {
+      if (cancelled) return;
+      realtimeReadyRef.current[channel] = channelStatus === "SUBSCRIBED";
+      if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(channelStatus)) {
+        setStatus("error");
+        setError("A conexão em tempo real foi interrompida. O aplicativo tentará reconectar.");
+      } else if (dataLoadedRef.current && realtimeReadyRef.current.messages && realtimeReadyRef.current.state) {
+        setStatus("online");
+        setError(null);
+      } else {
+        setStatus("connecting");
+      }
+    };
     void Promise.all([
       loadCampaignMessages(remoteId),
       loadCampaignState<BattleMapData>(remoteId, "battlemap"),
@@ -99,14 +116,15 @@ export function useLiveCampaign(options: Options) {
         receivedRemoteInitiativeRef.current = remoteInitiative.payload;
         setInitiative(remoteInitiative.payload);
       }
+      dataLoadedRef.current = true;
       setHydratedRemoteId(remoteId);
-      setStatus("online");
+      if (realtimeReadyRef.current.messages && realtimeReadyRef.current.state) setStatus("online");
     }).catch((cause) => {
       if (!cancelled) { setStatus("error"); setError(cause instanceof Error ? cause.message : "Falha na sincronização."); }
     });
     const messageChannel = subscribeToCampaignMessages(remoteId, (message) => {
       setMessages((previous) => previous.some((item) => item.id === message.id) ? previous : [...previous, toChatMessage(message, user)]);
-    });
+    }, (channelStatus) => handleChannelStatus("messages", channelStatus));
     const stateChannel = subscribeToCampaignState(remoteId, (key, payload, revision) => {
       revisionsRef.current[key] = revision;
       if (key === "battlemap") {
@@ -117,7 +135,7 @@ export function useLiveCampaign(options: Options) {
         receivedRemoteInitiativeRef.current = payload as InitiativeState;
         setInitiative(payload as InitiativeState);
       }
-    });
+    }, (channelStatus) => handleChannelStatus("state", channelStatus));
     return () => {
       cancelled = true;
       if (messageChannel) void client.removeChannel(messageChannel);
@@ -132,7 +150,10 @@ export function useLiveCampaign(options: Options) {
       return;
     }
     const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap, revisionsRef.current.battlemap)
-      .then((revision) => { revisionsRef.current.battlemap = revision; setStatus("online"); })
+      .then((revision) => {
+        revisionsRef.current.battlemap = revision;
+        setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+      })
       .catch(async (cause) => {
         setStatus("error");
         if (cause instanceof CampaignStateConflictError) {
@@ -155,7 +176,10 @@ export function useLiveCampaign(options: Options) {
       return;
     }
     const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative, revisionsRef.current.initiative)
-      .then((revision) => { revisionsRef.current.initiative = revision; setStatus("online"); })
+      .then((revision) => {
+        revisionsRef.current.initiative = revision;
+        setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+      })
       .catch(async (cause) => {
         setStatus("error");
         if (cause instanceof CampaignStateConflictError) {
@@ -178,7 +202,7 @@ export function useLiveCampaign(options: Options) {
       setMessages((previous) => previous.some((item) => item.id === savedMessage.id)
         ? previous
         : [...previous, toChatMessage(savedMessage, user)]);
-      setStatus("online");
+      setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
       return true;
     } catch (cause) {
       setStatus("error");

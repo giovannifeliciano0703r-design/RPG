@@ -171,6 +171,7 @@ export async function sendCampaignMessage(campaignId: string, message: Partial<i
 export function subscribeToCampaignMessages(
   campaignId: string,
   onMessage: (message: RemoteCampaignMessage) => void,
+  onStatus?: (status: string) => void,
 ): RealtimeChannel | null {
   if (!supabase) return null;
   return supabase
@@ -180,7 +181,7 @@ export function subscribeToCampaignMessages(
       { event: "INSERT", schema: "public", table: "campaign_messages", filter: `campaign_id=eq.${campaignId}` },
       (event) => onMessage(event.new as RemoteCampaignMessage),
     )
-    .subscribe();
+    .subscribe((status) => onStatus?.(status));
 }
 
 export class CampaignStateConflictError extends Error {
@@ -206,7 +207,11 @@ export async function loadCampaignState<T>(campaignId: string, stateKey: string)
   return data ? { payload: data.payload as T, revision: Number(data.revision) } : null;
 }
 
-export function subscribeToCampaignState(campaignId: string, onState: (stateKey: string, payload: unknown, revision: number) => void) {
+export function subscribeToCampaignState(
+  campaignId: string,
+  onState: (stateKey: string, payload: unknown, revision: number) => void,
+  onStatus?: (status: string) => void,
+) {
   if (!supabase) return null;
   return supabase.channel(`campaign:${campaignId}:state`).on(
     "postgres_changes",
@@ -215,7 +220,7 @@ export function subscribeToCampaignState(campaignId: string, onState: (stateKey:
       const row = event.new as { state_key?: string; payload?: unknown; revision?: number };
       if (row.state_key) onState(row.state_key, row.payload, Number(row.revision || 0));
     },
-  ).subscribe();
+  ).subscribe((status) => onStatus?.(status));
 }
 
 export function subscribeToCampaignRoster(campaignId: string, onChange: () => void): RealtimeChannel | null {
