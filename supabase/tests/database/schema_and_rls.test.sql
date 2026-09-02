@@ -28,7 +28,15 @@ select has_index('public', 'campaign_messages', 'campaign_messages_author_create
 select has_index('private', 'campaign_invite_attempts', 'campaign_invite_attempts_user_time_idx', 'invite attempt rate-limit lookup is indexed');
 select has_column('public', 'campaign_messages', 'message_type', 'online chat preserves message types');
 select has_column('public', 'campaign_messages', 'metadata', 'online chat preserves bounded presentation metadata');
-select has_check('public', 'campaign_messages', 'campaign_messages_metadata_shape', 'online chat metadata is validated in the database');
+select is((
+  select count(*)::integer
+  from pg_constraint constraint_record
+  join pg_class table_record on table_record.oid = constraint_record.conrelid
+  join pg_namespace schema_record on schema_record.oid = table_record.relnamespace
+  where schema_record.nspname = 'public' and table_record.relname = 'campaign_messages'
+    and constraint_record.conname = 'campaign_messages_metadata_shape'
+    and constraint_record.contype = 'c'
+), 1, 'online chat metadata is validated in the database');
 select is(public.is_valid_campaign_message_metadata('{"senderName":"Eldrin","rollData":{"formula":"1d20","total":15,"rolls":[15]}}'::jsonb), true, 'valid rich chat metadata is accepted');
 select is(public.is_valid_campaign_message_metadata('{"imageUrl":"javascript:alert(1)"}'::jsonb), false, 'unsafe rich chat metadata is rejected');
 
