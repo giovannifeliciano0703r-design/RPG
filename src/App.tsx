@@ -251,7 +251,7 @@ export default function App() {
     initiativeState: DEFAULT_INITIATIVE_STATE,
   }), []);
 
-  const { isLoading: isUserStateLoading } = useSupabaseUserState({
+  const { isLoading: isUserStateLoading, loadError: userStateLoadError, retry: retryUserStateLoad } = useSupabaseUserState({
     userId: currentUserId,
     state: {
       activeSystem,
@@ -453,9 +453,28 @@ export default function App() {
 
   if (isAuthChecking || (currentUser && isUserStateLoading)) {
     return (
-      <div className="min-h-screen bg-[#12110C] text-[#DFB56C] flex items-center justify-center font-serif">
-        {isAuthChecking ? "Validando sessão segura…" : "Carregando seus dados online…"}
-      </div>
+      <main className="min-h-screen bg-[#12110C] text-[#EFE8D8] flex items-center justify-center p-6 font-serif">
+        {userStateLoadError && !isAuthChecking ? (
+          <section role="alert" className="w-full max-w-md rounded-2xl border border-[#C4645A]/50 bg-[#1D1B14] p-6 text-center shadow-2xl">
+            <AlertCircle className="mx-auto h-8 w-8 text-[#C4645A]" aria-hidden="true" />
+            <h1 className="mt-4 text-xl font-bold">Não foi possível carregar sua conta</h1>
+            <p className="mt-2 text-sm text-[#BEB5A2]">Seus dados locais não serão exibidos para evitar misturar informações entre contas.</p>
+            <p className="mt-3 text-xs text-[#CFC5B1]">{userStateLoadError}</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button type="button" onClick={retryUserStateLoad} className="rounded-xl bg-[#DFB56C] px-5 py-3 font-bold text-[#17140E] hover:bg-[#ECC77F]">
+                Tentar novamente
+              </button>
+              <button type="button" onClick={handleLogout} className="rounded-xl border border-[#4A4437] px-5 py-3 font-bold text-[#EFE8D8] hover:bg-white/5">
+                Sair da conta
+              </button>
+            </div>
+          </section>
+        ) : (
+          <p role="status" aria-live="polite" className="text-[#DFB56C]">
+            {isAuthChecking ? "Validando sessão segura…" : "Carregando seus dados online…"}
+          </p>
+        )}
+      </main>
     );
   }
 

@@ -19,6 +19,8 @@ interface Options {
 export function useSupabaseUserState({ userId, state, applyState, createFreshState, onError }: Options) {
   const [isLoading, setIsLoading] = useState(Boolean(userId));
   const [isSynced, setIsSynced] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
   const hydratedUserRef = useRef<string | null>(null);
   const stateRef = useRef(state);
   const applyStateRef = useRef(applyState);
@@ -36,12 +38,14 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
       hydratedUserRef.current = null;
       setIsLoading(false);
       setIsSynced(false);
+      setLoadError(null);
       return;
     }
 
     let cancelled = false;
     setIsLoading(true);
     setIsSynced(false);
+    setLoadError(null);
     void loadUserAppState(userId)
       .then(async ({ state: remoteState, revisions }) => {
         if (cancelled) return;
@@ -61,12 +65,16 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
         setIsSynced(true);
       })
       .catch((cause) => {
-        if (!cancelled) onErrorRef.current(cause instanceof Error ? cause.message : "Falha ao carregar seus dados online.");
+        if (!cancelled) {
+          const message = cause instanceof Error ? cause.message : "Falha ao carregar seus dados online.";
+          setLoadError(message);
+          onErrorRef.current(message);
+        }
       })
       .finally(() => { if (!cancelled) setIsLoading(false); });
 
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [retryAttempt, userId]);
 
   useEffect(() => {
     const client = supabase;
@@ -111,5 +119,10 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
     state.initiativeState,
   ]);
 
-  return { isLoading: Boolean(userId) && (isLoading || hydratedUserRef.current !== userId), isSynced };
+  return {
+    isLoading: Boolean(userId) && (isLoading || hydratedUserRef.current !== userId),
+    isSynced,
+    loadError,
+    retry: () => setRetryAttempt((attempt) => attempt + 1),
+  };
 }
