@@ -233,10 +233,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <form onSubmit={handleSave} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
           {/* Form Fields */}
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+            <label htmlFor="profile-display-name" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
               Nome do Aventureiro / Título
             </label>
             <input
+              id="profile-display-name"
               type="text"
               required
               value={name}
@@ -247,10 +248,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+              <label htmlFor="profile-table-role" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
                 Papel na Mesa
               </label>
                 <select
+                  id="profile-table-role"
                   value={role}
                   onChange={(e) => setRole(e.target.value as UserRole)}
                   disabled={isAdmin}
@@ -265,10 +267,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
+              <label htmlFor="profile-favorite-system" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">
                 Sistema Preferido
               </label>
               <select
+                id="profile-favorite-system"
                 value={favoriteSystem}
                 onChange={(e) => setFavoriteSystem(e.target.value as RpgSystem)}
                 className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 px-3 text-xs text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C] font-mono"
@@ -284,10 +287,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           {/* Avatar selector */}
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2">
+            <p id="profile-avatar-label" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2">
               Brasão Arcano
-            </label>
-            <div className="grid grid-cols-6 gap-2">
+            </p>
+            <div className="grid grid-cols-6 gap-2" role="group" aria-labelledby="profile-avatar-label">
               {AVATARS.map((av) => {
                 const IconComp = av.icon;
                 const isSel = selectedAvatar === av.id;
@@ -296,6 +299,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     key={av.id}
                     type="button"
                     title={av.label}
+                    aria-label={`Escolher avatar ${av.label}`}
+                    aria-pressed={isSel}
                     onClick={() => setSelectedAvatar(av.id)}
                     className={`h-11 rounded-xl border flex items-center justify-center transition-all active:scale-90 ${
                       isSel

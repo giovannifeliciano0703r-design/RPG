@@ -483,10 +483,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                 {/* Avatar Selection */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2">
+                  <p className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2" id="register-avatar-label">
                     Escolha seu Brasão Arcano
-                  </label>
-                  <div className="grid grid-cols-6 gap-2">
+                  </p>
+                  <div className="grid grid-cols-6 gap-2" role="group" aria-labelledby="register-avatar-label">
                     {AVATARS.map((av) => {
                       const IconComp = av.icon;
                       const isSel = selectedAvatar === av.id;

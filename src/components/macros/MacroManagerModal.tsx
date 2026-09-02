@@ -209,8 +209,9 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-mono text-[#A79C82] block mb-1">NOME DA MACRO</label>
+                    <label htmlFor="macro-name" className="text-[10px] font-mono text-[#A79C82] block mb-1">NOME DA MACRO</label>
                     <input
+                      id="macro-name"
                       type="text"
                       value={editingMacro.name}
                       onChange={(e) => setEditingMacro({ ...editingMacro, name: e.target.value })}
@@ -219,8 +220,9 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono text-[#A79C82] block mb-1">CATEGORIA</label>
+                    <label htmlFor="macro-category" className="text-[10px] font-mono text-[#A79C82] block mb-1">CATEGORIA</label>
                     <select
+                      id="macro-category"
                       value={editingMacro.category}
                       onChange={(e) => setEditingMacro({ ...editingMacro, category: e.target.value as MacroCategory })}
                       className="w-full bg-[#1C1A14] border border-[#38352A] rounded-xl px-3 py-1.5 text-xs text-[#EFE8D8] outline-none"
@@ -236,12 +238,13 @@ export const MacroManagerModal: React.FC<MacroManagerModalProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-[10px] font-mono text-[#A79C82]">FÓRMULA / COMANDOS DE DADOS</label>
+                    <label htmlFor="macro-command" className="text-[10px] font-mono text-[#A79C82]">FÓRMULA / COMANDOS DE DADOS</label>
                     <span className="text-[10px] font-mono text-[#8DAE8F]">
                       Suporta: /roll, /damage, 1d20+@{`{strMod}`}, [Rótulo]
                     </span>
                   </div>
                   <textarea
+                    id="macro-command"
                     rows={4}
                     value={editingMacro.command}
                     onChange={(e) => setEditingMacro({ ...editingMacro, command: e.target.value })}
