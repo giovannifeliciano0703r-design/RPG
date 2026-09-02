@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(39);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -41,6 +41,7 @@ select is(has_function_privilege('anon', 'public.can_edit_campaign_state(uuid,te
 select is(has_function_privilege('authenticated', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'signed-in clients cannot call the campaign policy helper directly');
 select is(has_function_privilege('anon', 'public.enforce_media_quota()', 'EXECUTE'), false, 'anonymous clients cannot call the media quota trigger');
 select is(has_function_privilege('authenticated', 'public.enforce_media_quota()', 'EXECUTE'), false, 'signed-in clients cannot call the media quota trigger');
+select is((select count(*)::integer from pg_policies where schemaname = 'public' and ((coalesce(qual, '') like '%auth.uid()%' and coalesce(qual, '') not like '%SELECT auth.uid()%') or (coalesce(with_check, '') like '%auth.uid()%' and coalesce(with_check, '') not like '%SELECT auth.uid()%'))), 0, 'RLS caches the authenticated user id once per statement');
 
 select * from finish();
 rollback;
