@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(38);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -33,6 +33,14 @@ select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSER
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'DELETE'), false, 'clients cannot delete campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaigns', 'DELETE'), false, 'clients cannot delete campaigns outside the audited RPC');
+select is(has_function_privilege('anon', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the campaign history trigger');
+select is(has_function_privilege('authenticated', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the campaign history trigger');
+select is(has_function_privilege('anon', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the account history trigger');
+select is(has_function_privilege('authenticated', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the account history trigger');
+select is(has_function_privilege('anon', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'anonymous clients cannot call the campaign policy helper');
+select is(has_function_privilege('authenticated', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'signed-in clients cannot call the campaign policy helper directly');
+select is(has_function_privilege('anon', 'public.enforce_media_quota()', 'EXECUTE'), false, 'anonymous clients cannot call the media quota trigger');
+select is(has_function_privilege('authenticated', 'public.enforce_media_quota()', 'EXECUTE'), false, 'signed-in clients cannot call the media quota trigger');
 
 select * from finish();
 rollback;
