@@ -283,7 +283,8 @@ export default function App() {
 
   const liveCampaign = useLiveCampaign({
     campaign: activeCampaign,
-    user: currentUser,
+    // Never start campaign side effects with state cached by another account.
+    user: isUserStateLoading ? null : currentUser,
     battlemap: battleMapData,
     initiative: initiativeState,
     setCampaign: handleSynchronizedCampaign,
