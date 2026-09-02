@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(28);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -28,6 +28,9 @@ select policies_are('public', 'campaign_invites', array['campaign_invites_read_m
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
 select policies_are('public', 'audit_events', array['audit_events_read_managers'], 'audit events are access controlled');
 select col_is_pk('public', 'campaign_members', array['campaign_id','user_id'], 'campaign membership cannot be duplicated');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSERT'), false, 'clients cannot insert campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'DELETE'), false, 'clients cannot delete campaign membership directly');
 
 select * from finish();
 rollback;
