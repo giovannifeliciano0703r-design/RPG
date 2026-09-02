@@ -102,6 +102,12 @@ export async function removeRemoteCampaignMember(campaignId: string, userId: str
   if (error) throw error;
 }
 
+export async function deleteRemoteCampaign(campaignId: string) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { error } = await supabase.rpc("delete_owned_campaign", { target_campaign: campaignId });
+  if (error) throw error;
+}
+
 export type RemoteCampaignMessage = {
   id: string;
   campaign_id: string;

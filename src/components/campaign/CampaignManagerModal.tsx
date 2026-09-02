@@ -20,6 +20,7 @@ import { ConfirmDialog, NoticeDialog } from "../ui/Dialog";
 import {
   createCampaignInvite,
   createRemoteCampaign,
+  deleteRemoteCampaign,
   joinCampaignByInvite,
   loadRemoteCampaign,
   loadCampaignManagementRecords,
@@ -69,6 +70,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [memberRemoval, setMemberRemoval] = useState<CampaignMember | null>(null);
+  const [confirmCampaignDeletion, setConfirmCampaignDeletion] = useState(false);
   const [inviteRecords, setInviteRecords] = useState<CampaignInviteRecord[]>([]);
   const [auditRecords, setAuditRecords] = useState<CampaignAuditRecord[]>([]);
   const campaignsRef = useRef(campaigns);
@@ -295,6 +297,19 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
     finally { setIsWorking(false); }
   };
 
+  const handleDeleteCampaign = async () => {
+    if (!activeCampaign?.remoteId || !isCurrentGm) return;
+    setConfirmCampaignDeletion(false); setIsWorking(true);
+    try {
+      await deleteRemoteCampaign(activeCampaign.remoteId);
+      const remaining = campaigns.filter((campaign) => campaign.id !== activeCampaign.id);
+      onSaveCampaigns(remaining);
+      if (remaining[0]) onSelectCampaign(remaining[0]);
+      onClose();
+    } catch (cause) { showError("Não foi possível excluir a campanha", cause); }
+    finally { setIsWorking(false); }
+  };
+
   return (
     <div role="dialog" aria-modal="true" aria-label="Gerenciador de campanhas" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
       <div className="bg-[#15140F] border border-[#7A2E27]/50 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -443,7 +458,11 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                     <button type="button" disabled={isWorking} onClick={() => { const ownMember = activeCampaign.members.find((member) => member.userId === currentUser.id); if (ownMember) setMemberRemoval(ownMember); }} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] flex items-center gap-1.5 disabled:opacity-50">
                       <LogOut className="w-3.5 h-3.5" /> Sair da campanha
                     </button>
-                  ) : null}
+                  ) : (
+                    <button type="button" disabled={isWorking} onClick={() => setConfirmCampaignDeletion(true)} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] flex items-center gap-1.5 disabled:opacity-50">
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir campanha
+                    </button>
+                  )}
                 </div>
 
                 {/* Member Roster & Roles */}
@@ -607,6 +626,15 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
         destructive
         onConfirm={() => void handleRemoveMember()}
         onClose={() => setMemberRemoval(null)}
+      />
+      <ConfirmDialog
+        isOpen={confirmCampaignDeletion}
+        title={`Excluir ${activeCampaign?.name || "esta campanha"}?`}
+        description="Esta ação exclui permanentemente a campanha, participantes, mensagens, mapas e dados compartilhados. As fichas pessoais de cada conta não serão removidas."
+        confirmLabel="Excluir campanha"
+        destructive
+        onConfirm={() => void handleDeleteCampaign()}
+        onClose={() => setConfirmCampaignDeletion(false)}
       />
     </div>
   );

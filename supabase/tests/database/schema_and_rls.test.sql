@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(30);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -16,6 +16,7 @@ select has_function('public', 'save_my_app_state_batch', array['jsonb','uuid'], 
 select has_function('public', 'revoke_campaign_invite', array['uuid'], 'invite revocation RPC exists');
 select has_function('public', 'remove_campaign_member', array['uuid','uuid'], 'membership removal RPC exists');
 select has_function('public', 'has_campaign_permission', array['uuid','text'], 'server-side campaign permission checker exists');
+select has_function('public', 'delete_owned_campaign', array['uuid'], 'audited campaign deletion RPC exists');
 select policies_are('public', 'trash_items', array['trash_items_own'], 'trash is private to its owner');
 select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='campaign_members'), 1, 'campaign roster is realtime');
 select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='user_app_state'), 1, 'account state is realtime');
@@ -31,6 +32,7 @@ select col_is_pk('public', 'campaign_members', array['campaign_id','user_id'], '
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSERT'), false, 'clients cannot insert campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'DELETE'), false, 'clients cannot delete campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaigns', 'DELETE'), false, 'clients cannot delete campaigns outside the audited RPC');
 
 select * from finish();
 rollback;
