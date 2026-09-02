@@ -27,15 +27,26 @@ type Options = {
 
 function toChatMessage(message: RemoteCampaignMessage, user: UserProfile | null): ChatMessage {
   const isCurrentUser = message.author_id === user?.id;
+  const metadata = message.metadata ?? {};
+  const senderName = typeof metadata.senderName === "string" ? metadata.senderName : undefined;
+  const senderAvatar = typeof metadata.senderAvatar === "string" ? metadata.senderAvatar : undefined;
+  const characterId = typeof metadata.characterId === "string" ? metadata.characterId : undefined;
+  const imageUrl = typeof metadata.imageUrl === "string" ? metadata.imageUrl : undefined;
+  const rollData = metadata.rollData && typeof metadata.rollData === "object"
+    ? metadata.rollData as ChatMessage["rollData"]
+    : undefined;
   return {
     id: message.id,
     senderId: message.author_id,
-    senderName: isCurrentUser ? user!.name : "Aventureiro online",
-    senderAvatar: isCurrentUser ? user!.avatar : "wizard",
+    senderName: senderName || (isCurrentUser ? user!.name : "Aventureiro online"),
+    senderAvatar: senderAvatar || (isCurrentUser ? user!.avatar : "wizard"),
+    characterId,
     channel: message.channel === "IC" ? "IC" : "OOC",
     content: message.body,
     timestamp: new Date(message.created_at).getTime(),
-    type: "TEXT",
+    type: message.message_type || "TEXT",
+    rollData,
+    imageUrl,
   };
 }
 
@@ -133,7 +144,10 @@ export function useLiveCampaign(options: Options) {
   const sendMessage = useCallback(async (message: Partial<ChatMessage>) => {
     if (!remoteId) return false;
     try {
-      await sendCampaignMessage(remoteId, message.content || "", message.channel === "IC" ? "IC" : "OOC");
+      const savedMessage = await sendCampaignMessage(remoteId, message);
+      setMessages((previous) => previous.some((item) => item.id === savedMessage.id)
+        ? previous
+        : [...previous, toChatMessage(savedMessage, user)]);
       setStatus("online");
       return true;
     } catch (cause) {
@@ -141,7 +155,7 @@ export function useLiveCampaign(options: Options) {
       setError(cause instanceof Error ? cause.message : "Mensagem mantida apenas neste dispositivo.");
       return false;
     }
-  }, [remoteId]);
+  }, [remoteId, setMessages, user]);
 
   return { status, error, clearError: () => setError(null), sendMessage };
 }

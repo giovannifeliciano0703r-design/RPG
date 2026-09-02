@@ -116,6 +116,8 @@ export type RemoteCampaignMessage = {
   channel: string;
   created_at: string;
   edited_at: string | null;
+  message_type: "TEXT" | "ROLL" | "IMAGE" | "SYSTEM";
+  metadata: Record<string, unknown> | null;
 };
 
 export async function createRemoteCampaign(campaign: Pick<Campaign, "name" | "description" | "system" | "isPrivate">) {
@@ -140,13 +142,26 @@ export async function loadCampaignMessages(campaignId: string) {
   return (data ?? []) as RemoteCampaignMessage[];
 }
 
-export async function sendCampaignMessage(campaignId: string, body: string, channel = "general") {
+export async function sendCampaignMessage(campaignId: string, message: Partial<import("../types").ChatMessage>) {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error("Entre na sua conta para enviar mensagens.");
   const { data, error } = await supabase
     .from("campaign_messages")
-    .insert({ campaign_id: campaignId, author_id: auth.user.id, body: body.trim(), channel })
+    .insert({
+      campaign_id: campaignId,
+      author_id: auth.user.id,
+      body: (message.content || "").trim(),
+      channel: message.channel === "IC" ? "IC" : "OOC",
+      message_type: message.type === "ROLL" || message.type === "IMAGE" ? message.type : "TEXT",
+      metadata: {
+        senderName: message.senderName?.slice(0, 120),
+        senderAvatar: message.senderAvatar?.slice(0, 500),
+        characterId: message.characterId?.slice(0, 120),
+        rollData: message.rollData,
+        imageUrl: message.imageUrl?.slice(0, 2_000),
+      },
+    })
     .select()
     .single();
   if (error) throw error;

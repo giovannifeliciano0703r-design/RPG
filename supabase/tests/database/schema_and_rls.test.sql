@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(41);
+select plan(43);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -24,6 +24,8 @@ select has_column('public', 'media_assets', 'thumbnail_path', 'media supports de
 select has_trigger('public', 'media_assets', 'media_quota_before_write', 'media quota is enforced in the database');
 select has_trigger('public', 'campaign_messages', 'campaign_messages_rate_limit_before_insert', 'message spam limit is enforced in the database');
 select has_index('public', 'campaign_messages', 'campaign_messages_author_created_idx', 'message rate-limit lookup is indexed');
+select has_column('public', 'campaign_messages', 'message_type', 'online chat preserves message types');
+select has_column('public', 'campaign_messages', 'metadata', 'online chat preserves bounded presentation metadata');
 
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
