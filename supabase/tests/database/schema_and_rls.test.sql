@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(39);
+select plan(41);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -28,6 +28,8 @@ select has_index('public', 'campaign_messages', 'campaign_messages_author_create
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
 select policies_are('public', 'audit_events', array['audit_events_read_managers'], 'audit events are access controlled');
+select policies_are('public', 'campaign_members', array['members_read'], 'membership reads use one policy and writes require protected RPCs');
+select policies_are('public', 'media_assets', array['media_delete_own','media_insert_own','media_read','media_update_own'], 'media access separates read and write policies');
 select col_is_pk('public', 'campaign_members', array['campaign_id','user_id'], 'campaign membership cannot be duplicated');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSERT'), false, 'clients cannot insert campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
