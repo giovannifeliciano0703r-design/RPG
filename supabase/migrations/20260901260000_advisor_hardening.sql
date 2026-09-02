@@ -33,5 +33,12 @@ with check (
 create policy media_delete_own on public.media_assets
 for delete to authenticated using (owner_id = (select auth.uid()));
 
--- This installation helper is invoked only by the database event trigger.
-revoke all on function public.rls_auto_enable() from public, anon, authenticated;
+-- This installation helper may exist on projects created through the dashboard,
+-- but is intentionally absent from clean local/CI databases.
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    execute 'revoke all on function public.rls_auto_enable() from public, anon, authenticated';
+  end if;
+end;
+$$;
