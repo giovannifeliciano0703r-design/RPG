@@ -96,10 +96,13 @@ app.get("/api/health", async (_req, res) => {
 app.post("/api/client-errors", (req, res) => {
   const errorId = typeof req.body?.errorId === "string" ? req.body.errorId.slice(0, 80) : "unknown";
   const errorName = typeof req.body?.errorName === "string" ? req.body.errorName.slice(0, 80) : "Error";
+  const allowedEvents = new Set(["client.render_failed", "client.unhandled_error", "client.unhandled_rejection"]);
+  const event = typeof req.body?.event === "string" && allowedEvents.has(req.body.event) ? req.body.event : "client.unknown_error";
+  const route = typeof req.body?.route === "string" ? req.body.route.replace(/[^\w\s./:-]/g, "").slice(0, 240) : "";
   const componentStack = typeof req.body?.componentStack === "string"
     ? req.body.componentStack.replace(/[^\w\s()./\\:-]/g, "").slice(0, 1_500)
     : "";
-  console.error(JSON.stringify({ level: "error", event: "client.render_failed", errorId, errorName, componentStack }));
+  console.error(JSON.stringify({ level: "error", event, errorId, errorName, route, componentStack }));
   res.status(202).json({ accepted: true, errorId });
 });
 

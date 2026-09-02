@@ -25,10 +25,13 @@ export default {
 
     const errorId = typeof body.errorId === "string" ? body.errorId.slice(0, 80) : "unknown";
     const errorName = typeof body.errorName === "string" ? body.errorName.slice(0, 80) : "Error";
+    const allowedEvents = new Set(["client.render_failed", "client.unhandled_error", "client.unhandled_rejection"]);
+    const event = typeof body.event === "string" && allowedEvents.has(body.event) ? body.event : "client.unknown_error";
+    const route = typeof body.route === "string" ? body.route.replace(/[^\w\s./:-]/g, "").slice(0, 240) : "";
     const componentStack = typeof body.componentStack === "string"
       ? body.componentStack.replace(/[^\w\s()./\\:-]/g, "").slice(0, 1_500)
       : "";
-    console.error(JSON.stringify({ level: "error", event: "client.render_failed", errorId, errorName, componentStack }));
+    console.error(JSON.stringify({ level: "error", event, errorId, errorName, route, componentStack }));
     return Response.json({ accepted: true, errorId }, { status: 202, headers: { "Cache-Control": "no-store" } });
   },
 };

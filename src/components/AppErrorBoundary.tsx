@@ -1,4 +1,5 @@
 import React from "react";
+import { reportClientError } from "../utils/clientTelemetry";
 
 type Props = { children: React.ReactNode };
 type State = { hasError: boolean; errorId?: string };
@@ -13,19 +14,13 @@ export class AppErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
-    const errorId = crypto.randomUUID();
+    const errorId = reportClientError({
+      event: "client.render_failed",
+      error,
+      componentStack: info.componentStack || "",
+    });
     this.setState({ errorId });
     console.error("RPG application error:", error, info);
-    void fetch("/api/client-errors", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        errorId,
-        errorName: error instanceof Error ? error.name : "UnknownError",
-        componentStack: info.componentStack || "",
-      }),
-      keepalive: true,
-    }).catch(() => undefined);
   }
 
   handleReload = () => window.location.reload();
