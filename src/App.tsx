@@ -68,6 +68,7 @@ import { useSupabaseUserState } from "./hooks/useSupabaseUserState";
 import type { UserAppState } from "./services/supabaseUserState";
 import { supabase } from "./lib/supabase";
 import { trashCharacter } from "./services/supabaseTrash";
+import { CURRENT_PRIVACY_VERSION } from "./constants/compliance";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -201,6 +202,8 @@ export default function App() {
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
+  const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const handleStorageError = useCallback((key: string) => {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
@@ -209,7 +212,10 @@ export default function App() {
   const { currentUser, setCurrentUser, isAuthChecking, isPasswordRecovery, clearPasswordRecovery, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
     onPreferredSystem: setActiveSystem,
   });
-  const currentUserId = currentUser?.id;
+  const hasCurrentConsent = Boolean(
+    currentUser?.termsAcceptedAt && currentUser.privacyVersion === CURRENT_PRIVACY_VERSION,
+  );
+  const currentUserId = hasCurrentConsent ? currentUser?.id : undefined;
 
   useEffect(() => {
     if (currentUser && isPasswordRecovery) setIsProfileOpen(true);
@@ -324,6 +330,25 @@ export default function App() {
     setIsNpcFoldersOpen(false);
     setIsCampaignOpen(false);
     clearAuthSession();
+  };
+
+  const handleAcceptCurrentTerms = async () => {
+    setConsentError(null);
+    setIsAcceptingTerms(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { error } = await supabase.rpc("accept_current_terms", { target_version: CURRENT_PRIVACY_VERSION });
+      if (error) throw error;
+      setCurrentUser((user) => user ? {
+        ...user,
+        termsAcceptedAt: new Date().toISOString(),
+        privacyVersion: CURRENT_PRIVACY_VERSION,
+      } : null);
+    } catch (error) {
+      setConsentError(error instanceof Error ? error.message : "Não foi possível registrar seu aceite.");
+    } finally {
+      setIsAcceptingTerms(false);
+    }
   };
 
   const handleUpdateProfile = async (updated: UserProfile) => {
@@ -475,6 +500,30 @@ export default function App() {
             {isAuthChecking ? "Validando sessão segura…" : "Carregando seus dados online…"}
           </p>
         )}
+      </main>
+    );
+  }
+
+  if (currentUser && !hasCurrentConsent) {
+    return (
+      <main className="min-h-screen bg-[#12110C] text-[#EFE8D8] flex items-center justify-center p-6">
+        <section className="w-full max-w-lg rounded-2xl border border-[#38352A] bg-[#1D1B14] p-6 text-center shadow-2xl" aria-labelledby="consent-title">
+          <ScrollText className="mx-auto h-9 w-9 text-[#DFB56C]" aria-hidden="true" />
+          <h1 id="consent-title" className="mt-4 font-serif text-2xl font-bold">Termos e privacidade atualizados</h1>
+          <p className="mt-3 text-sm text-[#BEB5A2]">Leia os documentos vigentes antes de acessar e sincronizar os dados da sua conta.</p>
+          <p className="mt-4 text-sm">
+            <a href="/terms.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Termos de Uso</a>
+            <span aria-hidden="true"> · </span>
+            <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Política de Privacidade</a>
+          </p>
+          {consentError ? <p role="alert" className="mt-4 text-sm text-[#C4645A]">{consentError}</p> : null}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button type="button" disabled={isAcceptingTerms} onClick={handleAcceptCurrentTerms} className="rounded-xl bg-[#DFB56C] px-5 py-3 font-bold text-[#17140E] disabled:opacity-50">
+              {isAcceptingTerms ? "Registrando aceite…" : "Li e aceito os documentos"}
+            </button>
+            <button type="button" disabled={isAcceptingTerms} onClick={handleLogout} className="rounded-xl border border-[#4A4437] px-5 py-3 font-bold disabled:opacity-50">Sair da conta</button>
+          </div>
+        </section>
       </main>
     );
   }

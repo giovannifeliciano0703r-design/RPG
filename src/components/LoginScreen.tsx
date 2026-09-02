@@ -22,6 +22,7 @@ import { UserProfile } from "../types";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { toUserProfile } from "../auth/supabaseAuth";
 import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
+import { CURRENT_PRIVACY_VERSION } from "../constants/compliance";
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
@@ -153,7 +154,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { display_name: name.trim(), avatar: selectedAvatar, accepted_terms: true, privacy_version: "2026-09-01" } },
+        options: { data: { display_name: name.trim(), avatar: selectedAvatar, accepted_terms: true, privacy_version: CURRENT_PRIVACY_VERSION } },
       });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível criar a conta.");
