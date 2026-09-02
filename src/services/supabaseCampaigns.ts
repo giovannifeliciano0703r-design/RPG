@@ -86,6 +86,7 @@ export async function joinCampaignByInvite(code: string) {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data, error } = await supabase.rpc("join_campaign_by_invite", { invite_code: code.trim().toUpperCase() });
   if (error) throw error;
+  if (!data) throw new Error("Convite inválido, expirado, esgotado ou com muitas tentativas recentes.");
   return loadRemoteCampaign(data as string);
 }
 

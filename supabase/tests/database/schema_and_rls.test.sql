@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(50);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -8,6 +8,7 @@ select has_table('public', 'audit_events', 'audit trail exists');
 select has_table('public', 'user_app_state', 'per-account state exists');
 select has_table('public', 'user_app_state_history', 'per-account state history exists');
 select has_table('public', 'trash_items', 'recoverable user trash exists');
+select has_table('public', 'campaign_invite_attempts', 'invite attempts are rate limited');
 select has_function('public', 'create_campaign_invite', array['uuid','integer','integer'], 'invite creation RPC exists');
 select has_function('public', 'join_campaign_by_invite', array['text'], 'invite join RPC exists');
 select has_function('public', 'save_campaign_state_versioned', array['uuid','text','jsonb','bigint'], 'versioned state RPC exists');
@@ -24,6 +25,7 @@ select has_column('public', 'media_assets', 'thumbnail_path', 'media supports de
 select has_trigger('public', 'media_assets', 'media_quota_before_write', 'media quota is enforced in the database');
 select has_trigger('public', 'campaign_messages', 'campaign_messages_rate_limit_before_insert', 'message spam limit is enforced in the database');
 select has_index('public', 'campaign_messages', 'campaign_messages_author_created_idx', 'message rate-limit lookup is indexed');
+select has_index('public', 'campaign_invite_attempts', 'campaign_invite_attempts_user_time_idx', 'invite attempt rate-limit lookup is indexed');
 select has_column('public', 'campaign_messages', 'message_type', 'online chat preserves message types');
 select has_column('public', 'campaign_messages', 'metadata', 'online chat preserves bounded presentation metadata');
 select has_check('public', 'campaign_messages', 'campaign_messages_metadata_shape', 'online chat metadata is validated in the database');
@@ -40,6 +42,8 @@ select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSER
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaign_members', 'DELETE'), false, 'clients cannot delete campaign membership directly');
 select is(has_table_privilege('authenticated', 'public.campaigns', 'DELETE'), false, 'clients cannot delete campaigns outside the audited RPC');
+select is(has_table_privilege('authenticated', 'public.campaign_invite_attempts', 'SELECT'), false, 'clients cannot inspect invite attempts');
+select is(has_table_privilege('authenticated', 'public.campaign_invite_attempts', 'INSERT'), false, 'clients cannot forge invite attempts');
 select is(has_function_privilege('anon', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the campaign history trigger');
 select is(has_function_privilege('authenticated', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the campaign history trigger');
 select is(has_function_privilege('anon', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the account history trigger');
