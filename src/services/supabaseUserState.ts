@@ -26,7 +26,9 @@ export interface UserAppState {
   initiativeState: InitiativeState;
 }
 
-const STATE_COLUMNS: Array<[keyof UserAppState, string]> = [
+export type UserAppStateKey = keyof UserAppState;
+
+export const STATE_COLUMNS: Array<[UserAppStateKey, string]> = [
   ["activeSystem", "active_system"],
   ["characters", "characters"],
   ["monsters", "monsters"],
@@ -65,13 +67,20 @@ export async function loadUserAppState(userId: string): Promise<LoadedUserAppSta
   return { state: result, revisions };
 }
 
-export async function saveUserAppState(userId: string, state: UserAppState, revisions: Record<string, number> = {}): Promise<Record<string, number>> {
+export async function saveUserAppState(
+  userId: string,
+  state: UserAppState,
+  revisions: Record<string, number> = {},
+  properties: UserAppStateKey[] = STATE_COLUMNS.map(([property]) => property),
+): Promise<Record<string, number>> {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data: auth } = await supabase.auth.getUser();
   if (auth.user?.id !== userId) throw new Error("A sessão não corresponde à conta ativa.");
-  const rows = STATE_COLUMNS.map(([property, stateKey]) => ({
+  const selected = new Set(properties);
+  const rows = STATE_COLUMNS.filter(([property]) => selected.has(property)).map(([property, stateKey]) => ({
     stateKey, payload: state[property], expectedRevision: revisions[stateKey] || 0,
   }));
+  if (rows.length === 0) return revisions;
   const { data, error } = await supabase.rpc("save_my_app_state_batch", { target_rows: rows, target_writer: CLIENT_INSTANCE_ID });
   if (error?.code === "40001") throw new UserAppStateConflictError();
   if (error) throw error;
