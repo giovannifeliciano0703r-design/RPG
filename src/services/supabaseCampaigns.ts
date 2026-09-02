@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import type { Campaign, CampaignMember, CampaignRole, CoGmPermissions, RpgSystem } from "../types";
+import type { ChatMessage } from "../types";
 
 type RemoteCampaignRow = {
   id: string; owner_id: string; name: string; description: string; system: string;
@@ -120,6 +121,45 @@ export type RemoteCampaignMessage = {
   metadata: Record<string, unknown> | null;
 };
 
+export type SafeRemoteMessageMetadata = Pick<ChatMessage, "senderName" | "senderAvatar" | "characterId" | "rollData" | "imageUrl">;
+
+function boundedString(value: unknown, limit: number): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value.slice(0, limit) : undefined;
+}
+
+function safeRolls(value: unknown): number[] | undefined {
+  if (!Array.isArray(value) || value.length > 100 || !value.every((item) => typeof item === "number" && Number.isFinite(item))) return undefined;
+  return value;
+}
+
+export function sanitizeRemoteMessageMetadata(value: unknown): SafeRemoteMessageMetadata {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const metadata = value as Record<string, unknown>;
+  const rawRoll = metadata.rollData && typeof metadata.rollData === "object" && !Array.isArray(metadata.rollData)
+    ? metadata.rollData as Record<string, unknown>
+    : null;
+  const formula = boundedString(rawRoll?.formula, 200);
+  const total = rawRoll?.total;
+  const rollData = formula && typeof total === "number" && Number.isFinite(total)
+    ? {
+        formula,
+        total,
+        rolls: safeRolls(rawRoll?.rolls),
+        individualRolls: safeRolls(rawRoll?.individualRolls),
+        isCrit: typeof rawRoll?.isCrit === "boolean" ? rawRoll.isCrit : undefined,
+        isFumble: typeof rawRoll?.isFumble === "boolean" ? rawRoll.isFumble : undefined,
+      }
+    : undefined;
+  const rawImageUrl = boundedString(metadata.imageUrl, 2_000);
+  return {
+    senderName: boundedString(metadata.senderName, 120),
+    senderAvatar: boundedString(metadata.senderAvatar, 500),
+    characterId: boundedString(metadata.characterId, 120),
+    rollData,
+    imageUrl: rawImageUrl && rawImageUrl.startsWith("https://") ? rawImageUrl : undefined,
+  };
+}
+
 export async function createRemoteCampaign(campaign: Pick<Campaign, "name" | "description" | "system" | "isPrivate">) {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data: auth } = await supabase.auth.getUser();
@@ -142,7 +182,7 @@ export async function loadCampaignMessages(campaignId: string) {
   return (data ?? []) as RemoteCampaignMessage[];
 }
 
-export async function sendCampaignMessage(campaignId: string, message: Partial<import("../types").ChatMessage>) {
+export async function sendCampaignMessage(campaignId: string, message: Partial<ChatMessage>) {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) throw new Error("Entre na sua conta para enviar mensagens.");
@@ -154,13 +194,13 @@ export async function sendCampaignMessage(campaignId: string, message: Partial<i
       body: (message.content || "").trim(),
       channel: message.channel === "IC" ? "IC" : "OOC",
       message_type: message.type === "ROLL" || message.type === "IMAGE" ? message.type : "TEXT",
-      metadata: {
+      metadata: sanitizeRemoteMessageMetadata({
         senderName: message.senderName?.slice(0, 120),
         senderAvatar: message.senderAvatar?.slice(0, 500),
         characterId: message.characterId?.slice(0, 120),
         rollData: message.rollData,
         imageUrl: message.imageUrl?.slice(0, 2_000),
-      },
+      }),
     })
     .select()
     .single();

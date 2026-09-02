@@ -7,6 +7,7 @@ import {
   loadCampaignMessages,
   loadCampaignState,
   saveCampaignState,
+  sanitizeRemoteMessageMetadata,
   sendCampaignMessage,
   subscribeToCampaignMessages,
   subscribeToCampaignState,
@@ -27,14 +28,7 @@ type Options = {
 
 function toChatMessage(message: RemoteCampaignMessage, user: UserProfile | null): ChatMessage {
   const isCurrentUser = message.author_id === user?.id;
-  const metadata = message.metadata ?? {};
-  const senderName = typeof metadata.senderName === "string" ? metadata.senderName : undefined;
-  const senderAvatar = typeof metadata.senderAvatar === "string" ? metadata.senderAvatar : undefined;
-  const characterId = typeof metadata.characterId === "string" ? metadata.characterId : undefined;
-  const imageUrl = typeof metadata.imageUrl === "string" ? metadata.imageUrl : undefined;
-  const rollData = metadata.rollData && typeof metadata.rollData === "object"
-    ? metadata.rollData as ChatMessage["rollData"]
-    : undefined;
+  const { senderName, senderAvatar, characterId, imageUrl, rollData } = sanitizeRemoteMessageMetadata(message.metadata);
   return {
     id: message.id,
     senderId: message.author_id,
