@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(51);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -43,6 +43,7 @@ select is(public.is_valid_campaign_message_metadata('{"imageUrl":"javascript:ale
 select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
 select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
 select policies_are('public', 'audit_events', array['audit_events_read_managers'], 'audit events are access controlled');
+select policies_are('public', 'profiles', array['profiles_read_relevant','profiles_update_self'], 'profiles are visible only to relevant authenticated users');
 select policies_are('public', 'campaign_members', array['members_read'], 'membership reads use one policy and writes require protected RPCs');
 select policies_are('public', 'media_assets', array['media_delete_own','media_insert_own','media_read','media_update_own'], 'media access separates read and write policies');
 select col_is_pk('public', 'campaign_members', array['campaign_id','user_id'], 'campaign membership cannot be duplicated');
