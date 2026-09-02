@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { selectChangedUserStateKeys, selectInitialAccountState } from "./useSupabaseUserState";
 import type { UserAppState } from "../services/supabaseUserState";
+import { mergeStateRevisions } from "../services/supabaseUserState";
 
 describe("selectInitialAccountState", () => {
   it("reutiliza cache somente para a mesma conta", () => {
@@ -21,4 +22,8 @@ it("selects only account sections whose references changed", () => {
   } as unknown as UserAppState;
   expect(selectChangedUserStateKeys(state, state)).toEqual([]);
   expect(selectChangedUserStateKeys(state, { ...state, characters: [] })).toEqual(["characters"]);
+});
+
+it("keeps revision tokens for account sections not included in a partial save", () => {
+  expect(mergeStateRevisions({ characters: 4, macros: 7 }, { characters: 5 })).toEqual({ characters: 5, macros: 7 });
 });

@@ -49,6 +49,13 @@ export class UserAppStateConflictError extends Error {
   constructor() { super("Seus dados foram alterados em outro aparelho. A versão mais recente foi carregada."); }
 }
 
+export function mergeStateRevisions(previous: Record<string, number>, updated: Record<string, unknown>): Record<string, number> {
+  return {
+    ...previous,
+    ...Object.fromEntries(Object.entries(updated).map(([key, value]) => [key, Number(value)])),
+  };
+}
+
 export async function loadUserAppState(userId: string): Promise<LoadedUserAppState> {
   if (!supabase) throw new Error("Supabase não está configurado.");
   const { data, error } = await supabase
@@ -84,7 +91,7 @@ export async function saveUserAppState(
   const { data, error } = await supabase.rpc("save_my_app_state_batch", { target_rows: rows, target_writer: CLIENT_INSTANCE_ID });
   if (error?.code === "40001") throw new UserAppStateConflictError();
   if (error) throw error;
-  return Object.fromEntries(Object.entries((data ?? {}) as Record<string, unknown>).map(([key, value]) => [key, Number(value)]));
+  return mergeStateRevisions(revisions, (data ?? {}) as Record<string, unknown>);
 }
 
 export function subscribeToUserAppState(userId: string, onPatch: (patch: Partial<UserAppState>, stateKey: string, revision: number) => void): RealtimeChannel | null {
