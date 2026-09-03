@@ -63,6 +63,10 @@ Mensagens e snapshots do VTT são compartilhados em tempo real. A leitura é lim
 
 ## Operação e monitoramento
 
+O CI bloqueia vulnerabilidades moderadas ou superiores nas dependências de produção. O Dependabot propõe atualizações semanais de pacotes e mensais das ações do GitHub, sem merge automático. A substituição `qs >=6.16.0` corrige os avisos GHSA-x5fp-wj9c-mxmx e GHSA-4mjr-xmp4-gh2g enquanto Express/body-parser limitam a resolução à linha 6.15; reavalie a substituição ao atualizar essas dependências.
+
+O recebimento de telemetria recusa JSON que não seja objeto e interrompe a leitura de corpos acima de 4 KB, medidos em bytes. Somente os campos permitidos são registrados; mensagens arbitrárias e campos extras são descartados.
+
 `GET /api/health` verifica o Supabase, não usa cache e retorna `503` quando a dependência está indisponível ou ausente em produção. As requisições geram logs JSON com identificador, duração e status, compatíveis com os Runtime Logs da Vercel. O CI executa lint, TypeScript, testes unitários, testes no Chromium, build de produção, reconstrução local do Supabase e testes pgTAP de schema/RLS.
 
 ## Conteúdo e licenças

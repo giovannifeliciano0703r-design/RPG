@@ -17,11 +17,36 @@ export default {
     const rate = limiter.consume(clientIp);
     if (!rate.allowed) return Response.json({ error: "Muitos registros em pouco tempo." }, { status: 429, headers: { "Retry-After": "60" } });
 
-    const raw = await request.text();
-    if (raw.length > 4_096) return Response.json({ error: "Registro excede o limite permitido." }, { status: 413 });
-    let body: Record<string, unknown>;
-    try { body = JSON.parse(raw) as Record<string, unknown>; }
+    const reader = request.body?.getReader();
+    let raw = "";
+    let bytes = 0;
+    const decoder = new TextDecoder();
+    try {
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytes += value.byteLength;
+          if (bytes > 4_096) {
+            await reader.cancel();
+            return Response.json({ error: "Registro excede o limite permitido." }, { status: 413 });
+          }
+          raw += decoder.decode(value, { stream: true });
+        }
+        raw += decoder.decode();
+      }
+    } catch {
+      return Response.json({ error: "Não foi possível ler o registro." }, { status: 400 });
+    } finally {
+      reader?.releaseLock();
+    }
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); }
     catch { return Response.json({ error: "Registro inválido." }, { status: 400 }); }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return Response.json({ error: "Registro inválido." }, { status: 400 });
+    }
+    const body = parsed as Record<string, unknown>;
 
     const errorId = typeof body.errorId === "string" ? body.errorId.slice(0, 80) : "unknown";
     const errorName = typeof body.errorName === "string" ? body.errorName.slice(0, 80) : "Error";
