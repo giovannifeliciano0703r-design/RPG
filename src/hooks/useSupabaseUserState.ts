@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { settleInScope } from "../utils/scopedAsync";
+import { getSyncRetryDelay } from "../utils/syncRetry";
 import { loadUserAppState, saveUserAppState, STATE_COLUMNS, subscribeToUserAppState, UserAppStateConflictError, type UserAppState, type UserAppStateKey } from "../services/supabaseUserState";
 
 const CACHE_OWNER_KEY = "mestre_arcano_cache_owner:v1";
@@ -36,6 +37,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   const lastSyncedStateRef = useRef<Partial<UserAppState>>({});
   const saveInFlightRef = useRef(false);
   const saveRequestedRef = useRef(false);
+  const consecutiveFailuresRef = useRef(0);
   const [saveSequence, setSaveSequence] = useState(0);
   stateRef.current = state;
   applyStateRef.current = applyState;
@@ -44,6 +46,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   if (accountScopeRef.current.userId !== userId) accountScopeRef.current = { userId };
 
   useEffect(() => {
+    consecutiveFailuresRef.current = 0;
     if (!userId || !isSupabaseConfigured) {
       hydratedUserRef.current = null;
       setIsLoading(false);
@@ -106,6 +109,18 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   }, [isLoading, userId]);
 
   useEffect(() => {
+    if (!userId) return;
+    const scope = accountScopeRef.current;
+    const resume = () => {
+      if (accountScopeRef.current !== scope) return;
+      consecutiveFailuresRef.current = 0;
+      setSaveSequence((sequence) => sequence + 1);
+    };
+    window.addEventListener("online", resume);
+    return () => window.removeEventListener("online", resume);
+  }, [userId]);
+
+  useEffect(() => {
     if (!userId || hydratedUserRef.current !== userId) return;
     const scope = accountScopeRef.current;
     const isCurrent = () => accountScopeRef.current === scope;
@@ -121,10 +136,13 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
         setIsSynced(true);
         return;
       }
+      // Keep pending edits in memory/cache; the online event resumes the queue.
+      if (!navigator.onLine) return;
       saveInFlightRef.current = true;
       void saveUserAppState(userId, snapshot, revisionsRef.current, changedProperties)
         .then((revisions) => {
           if (!isCurrent()) return;
+          consecutiveFailuresRef.current = 0;
           revisionsRef.current = revisions;
           const nextSynced = { ...lastSyncedStateRef.current };
           for (const property of changedProperties) (nextSynced as Record<string, unknown>)[property] = snapshot[property];
@@ -133,6 +151,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
         })
         .catch(async (cause) => {
           if (!isCurrent()) return;
+          consecutiveFailuresRef.current += 1;
           if (cause instanceof UserAppStateConflictError) {
             await settleInScope(
               () => loadUserAppState(userId),
@@ -160,7 +179,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
             setSaveSequence((sequence) => sequence + 1);
           }
         });
-    }, 900);
+    }, getSyncRetryDelay(consecutiveFailuresRef.current));
     return () => window.clearTimeout(timer);
   }, [
     userId,
