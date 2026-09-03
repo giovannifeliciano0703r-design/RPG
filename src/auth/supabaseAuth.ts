@@ -3,12 +3,18 @@ import type { UserProfile, UserRole } from "../types";
 import { normalizeRpgSystem } from "../domain/rpgSystems";
 import { supabase } from "../lib/supabase";
 
-type ProfileRow = { display_name?: string; global_role?: "player" | "gm" | "admin"; avatar_url?: string | null };
+type ProfileRow = {
+  display_name?: string;
+  global_role?: "player" | "gm" | "admin";
+  avatar_url?: string | null;
+  terms_accepted_at?: string | null;
+  privacy_version?: string | null;
+};
 
 export async function toUserProfile(user: User): Promise<UserProfile> {
   let profile: ProfileRow | null = null;
   if (supabase) {
-    const result = await supabase.from("profiles").select("display_name, global_role, avatar_url").eq("id", user.id).maybeSingle();
+    const result = await supabase.from("profiles").select("display_name, global_role, avatar_url, terms_accepted_at, privacy_version").eq("id", user.id).maybeSingle();
     if (!result.error) profile = result.data as ProfileRow | null;
   }
   const globalRole = profile?.global_role ?? "player";
@@ -22,5 +28,7 @@ export async function toUserProfile(user: User): Promise<UserProfile> {
     favoriteSystem: normalizeRpgSystem(user.user_metadata.favorite_system),
     createdAt: new Date(user.created_at).getTime(),
     isAdmin: globalRole === "admin",
+    termsAcceptedAt: profile?.terms_accepted_at || undefined,
+    privacyVersion: profile?.privacy_version || undefined,
   };
 }

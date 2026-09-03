@@ -6,10 +6,12 @@ Plataforma para mesas de RPG construída com React, TypeScript, Vite, Express e 
 
 - fichas de personagem, bestiário, macros e rolagem de dados;
 - campanhas, NPCs, battlemap/VTT e iniciativa;
-- biblioteca de mídia persistida como dados binários no IndexedDB;
+- biblioteca de mídia privada no Supabase Storage, com miniaturas e quota por conta;
 - contas reais, banco Postgres, políticas RLS, canais Realtime e armazenamento privado via Supabase;
-- armazenamento local versionado, validado, limitado e gravado com debounce;
-- backup/restauração local, Error Boundary e interface responsiva.
+- sincronização versionada por conta e histórico de alterações para resolver conflitos entre aparelhos;
+- autenticação multifator opcional, recuperação de senha, encerramento de sessões, exportação e exclusão de conta;
+- campanhas com convites expiráveis, CoMestre com permissões granulares, saída e remoção segura de participantes;
+- lixeira recuperável, Error Boundary e interface responsiva.
 
 ## Desenvolvimento
 
@@ -26,6 +28,7 @@ Validação completa:
 npm run lint
 npm run typecheck
 npm test
+npm run test:e2e
 npm run build
 ```
 
@@ -47,14 +50,24 @@ As migrações versionadas ficam em `supabase/migrations`. Elas criam perfis, ca
 - não existem perfis locais, modo convidado nem acessos de demonstração;
 - senhas e flags administrativas antigas são removidas automaticamente do navegador;
 - o papel administrativo vem do banco e é protegido por RLS;
+- a verificação em duas etapas TOTP pode ser ativada no perfil e é exigida nos logins seguintes;
+- convites, mudanças de papel, remoções e estados compartilhados são autorizados novamente no banco;
 - a API limita o tamanho do corpo, valida a origem de mutações e envia cabeçalhos de segurança;
 - o parser de macros aceita somente a gramática aritmética prevista e não usa `eval` ou `new Function`.
 
 ## Persistência
 
-Estados pequenos usam chaves versionadas do `localStorage`, gravação com debounce e guardas de quota. Imagens locais e miniaturas usam `Blob` no IndexedDB. Contas hospedadas usam o bucket privado do Supabase Storage, com limite de 10 MB, MIME allowlist, caminho por usuário e metadados no Postgres.
+O estado de cada conta é salvo no Postgres em lotes atômicos, com versão, debounce, prevenção de sobrescrita e atualização Realtime entre aparelhos. O `localStorage` guarda somente preferências transitórias e nunca é tratado como fonte de autorização. Imagens e miniaturas usam o bucket privado do Supabase Storage, com limite de 10 MB por arquivo, quota total de 100 MB, tipos permitidos, caminho por usuário e metadados no Postgres.
 
-Mensagens e snapshots do VTT são compartilhados em tempo real, com leitura limitada aos membros e escrita de estado restrita a GM/admin pelas políticas RLS.
+Mensagens e snapshots do VTT são compartilhados em tempo real. A leitura é limitada aos membros; a escrita segue as permissões do Mestre ou do CoMestre tanto na interface quanto nas funções protegidas do banco.
+
+## Operação e monitoramento
+
+O CI bloqueia vulnerabilidades moderadas ou superiores nas dependências de produção. O Dependabot propõe atualizações semanais de pacotes e mensais das ações do GitHub, sem merge automático. A substituição `qs >=6.16.0` corrige os avisos GHSA-x5fp-wj9c-mxmx e GHSA-4mjr-xmp4-gh2g enquanto Express/body-parser limitam a resolução à linha 6.15; reavalie a substituição ao atualizar essas dependências.
+
+O recebimento de telemetria recusa JSON que não seja objeto e interrompe a leitura de corpos acima de 4 KB, medidos em bytes. Somente os campos permitidos são registrados; mensagens arbitrárias e campos extras são descartados.
+
+`GET /api/health` verifica o Supabase, não usa cache e retorna `503` quando a dependência está indisponível ou ausente em produção. As requisições geram logs JSON com identificador, duração e status, compatíveis com os Runtime Logs da Vercel. O CI executa lint, TypeScript, testes unitários, testes no Chromium, build de produção, reconstrução local do Supabase e testes pgTAP de schema/RLS.
 
 ## Conteúdo e licenças
 
@@ -64,4 +77,6 @@ Consulte [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) e [CONTENT_POLICY.md
 
 ## Licença
 
-A licença do código ainda deve ser escolhida pelo mantenedor antes de redistribuição ampla. Conteúdo e marcas de terceiros seguem seus próprios termos.
+O código e os ativos originais são proprietários e têm todos os direitos reservados por Giovanni Feliciano. Conteúdo, bibliotecas e marcas de terceiros seguem seus próprios termos.
+
+Consulte também [PRIVACY.md](./PRIVACY.md), [TERMS.md](./TERMS.md), [SECURITY.md](./SECURITY.md) e [LICENSE](./LICENSE).

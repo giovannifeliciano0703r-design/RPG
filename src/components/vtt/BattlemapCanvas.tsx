@@ -427,6 +427,10 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       {/* Main Interactive Stage Container */}
       <div
         ref={containerRef}
+        role="application"
+        aria-label="Mapa tático interativo"
+        tabIndex={0}
+        onKeyDown={(event) => { if (event.key === "Escape") setSelectedTokenId(null); }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -527,8 +531,10 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
             const perm = canControlToken(token);
 
             return (
-              <div
+              <button
+                type="button"
                 key={token.id}
+                aria-label={`Selecionar token ${token.name}`}
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedTokenId(token.id);
@@ -543,7 +549,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
                   transition: draggedTokenId === token.id ? "none" : "all 0.12s ease-out",
                   zIndex: isSelected ? 25 : 10,
                 }}
-                className={`group flex items-center justify-center select-none ${
+                className={`group border-0 bg-transparent p-0 flex items-center justify-center select-none ${
                   perm.canControl ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
                 }`}
                 title={
@@ -601,7 +607,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
                     {token.name}
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>

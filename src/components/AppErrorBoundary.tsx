@@ -1,7 +1,8 @@
-import React from 'react';
+import React from "react";
+import { reportClientError } from "../utils/clientTelemetry";
 
 type Props = { children: React.ReactNode };
-type State = { hasError: boolean; message?: string };
+type State = { hasError: boolean; errorId?: string };
 
 export class AppErrorBoundary extends React.Component<Props, State> {
   state: State = { hasError: false };
@@ -9,12 +10,17 @@ export class AppErrorBoundary extends React.Component<Props, State> {
   static getDerivedStateFromError(error: unknown): State {
     return {
       hasError: true,
-      message: error instanceof Error ? error.message : 'Erro inesperado.',
     };
   }
 
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
-    console.error('RPG application error:', error, info);
+    const errorId = reportClientError({
+      event: "client.render_failed",
+      error,
+      componentStack: info.componentStack || "",
+    });
+    this.setState({ errorId });
+    console.error("RPG application error:", error, info);
   }
 
   handleReload = () => window.location.reload();
@@ -27,13 +33,9 @@ export class AppErrorBoundary extends React.Component<Props, State> {
         <section className="w-full max-w-lg rounded-2xl border border-red-500/30 bg-slate-900 p-8 shadow-2xl">
           <h1 className="text-2xl font-bold">O Mestre Arcano encontrou um erro</h1>
           <p className="mt-3 text-slate-300">
-            A aplicação não conseguiu renderizar esta tela. Seus dados salvos no navegador não foram apagados.
+            A aplicação não conseguiu renderizar esta tela. Seus dados online não foram apagados.
           </p>
-          {this.state.message && (
-            <pre className="mt-4 max-h-32 overflow-auto rounded-lg bg-black/30 p-3 text-xs text-red-200 whitespace-pre-wrap">
-              {this.state.message}
-            </pre>
-          )}
+          {this.state.errorId ? <p className="mt-4 rounded-lg bg-black/30 p-3 text-xs text-red-200">Código do erro: <code>{this.state.errorId}</code></p> : null}
           <button
             type="button"
             onClick={this.handleReload}

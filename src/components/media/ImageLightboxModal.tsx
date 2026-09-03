@@ -18,16 +18,15 @@ export const ImageLightboxModal: React.FC<ImageLightboxModalProps> = ({
 
   return (
     <div
-      onClick={onClose}
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
+      onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-label={title ? `Imagem: ${title}` : "Visualização de imagem"}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200 cursor-zoom-out"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center cursor-default"
-      >
+      <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center justify-center cursor-default">
         {/* Controls bar */}
         <div className="absolute top-2 right-2 sm:-top-12 sm:right-0 flex items-center gap-2 bg-[#15140F]/80 p-1.5 rounded-xl border border-[#38352A]">
           {title && <span className="text-xs font-mono text-[#EFE8D8] px-2">{title}</span>}

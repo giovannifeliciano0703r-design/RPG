@@ -12,132 +12,47 @@ import {
   Image as ImageIcon,
   Crown,
   Users,
-  ExternalLink,
   Plus,
-  Compass,
   CheckCircle2,
   Heart,
-  Menu,
   ChevronDown,
+  Trash2,
 } from "lucide-react";
 import {
-  UserProfile,
   CharacterSheet,
-  RpgSystem,
 } from "../../types";
 
 interface HubViewProps {
-  currentUser: UserProfile;
   activeCharacter: CharacterSheet | null;
   characters: CharacterSheet[];
-  activeSystem: RpgSystem;
   onNavigateView: (view: "vtt" | "hub") => void;
-  onToggleSidebar?: () => void;
   onOpenCharacterSheet: (character?: CharacterSheet) => void;
+  onDeleteCharacter: (character: CharacterSheet) => void;
+  onOpenTrash: () => void;
   onOpenBestiary: () => void;
   onOpenMacroManager: () => void;
   onOpenMediaLibrary: () => void;
   onOpenNpcFolders: () => void;
   onOpenCampaignManager: () => void;
   onOpenDiceRoller: () => void;
-  onOpenSystemSelector: () => void;
-  onOpenProfile: () => void;
 }
 
 export const HubView: React.FC<HubViewProps> = ({
-  currentUser,
   activeCharacter,
   characters,
-  activeSystem,
   onNavigateView,
-  onToggleSidebar,
   onOpenCharacterSheet,
+  onDeleteCharacter,
+  onOpenTrash,
   onOpenBestiary,
   onOpenMacroManager,
   onOpenMediaLibrary,
   onOpenNpcFolders,
   onOpenCampaignManager,
   onOpenDiceRoller,
-  onOpenSystemSelector,
-  onOpenProfile,
 }) => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#15140F] text-[#EFE8D8] overflow-y-auto custom-scrollbar">
-      {/* Top Banner Navigation Bar */}
-      <div className="bg-[#1D1B14] border-b border-[#38352A] px-4 py-3 sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
-          {onToggleSidebar && (
-            <button
-              onClick={onToggleSidebar}
-              className="px-3 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#DFB56C] border border-[#38352A] hover:border-[#DFB56C] font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
-              title="Abrir/Fechar Menu Lateral"
-            >
-              <Menu className="w-3.5 h-3.5" />
-              <span className="font-mono">Menu</span>
-            </button>
-          )}
-
-          {/* Active HUB Tab */}
-          <button
-            className="px-4 py-1.5 bg-[#DFB56C] text-[#15140F] font-black font-sans text-xs uppercase tracking-wider rounded-xl shadow-lg flex items-center gap-1.5 cursor-pointer shrink-0"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>HUB</span>
-          </button>
-
-          <button
-            onClick={() => onOpenCharacterSheet(activeCharacter || undefined)}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Fichas de Personagem"
-          >
-            <Users className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Fichas</span>
-          </button>
-
-          <button
-            onClick={() => onNavigateView("vtt")}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Mesa Virtual & Battlemap"
-          >
-            <MapIcon className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Mesa VTT</span>
-          </button>
-
-          <button
-            onClick={onOpenBestiary}
-            className="px-3.5 py-1.5 bg-[#15140F] hover:bg-[#232018] text-[#D6CEBE] hover:text-[#EFE8D8] border border-[#38352A] hover:border-[#DFB56C]/50 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            title="Bestiário de Criaturas"
-          >
-            <Flame className="w-3.5 h-3.5 text-[#DFB56C]" />
-            <span>Bestiário</span>
-          </button>
-        </div>
-
-        {/* User quick status & System badge */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onOpenSystemSelector}
-            className="px-2.5 py-1 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#DFB56C] rounded-lg text-xs font-mono flex items-center gap-1 transition-colors cursor-pointer"
-            title="Alterar Sistema Ativo"
-          >
-            <Sparkles className="w-3 h-3 text-[#DFB56C]" />
-            <span className="hidden sm:inline font-bold">{activeSystem}</span>
-            <span className="sm:hidden font-bold">Sistema</span>
-          </button>
-
-          <button
-            onClick={onOpenProfile}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-[#15140F] border border-[#38352A] hover:border-[#DFB56C] text-[#EFE8D8] rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            title="Perfil de Usuário"
-          >
-            <div className="w-5 h-5 rounded-full bg-[#DFB56C] text-[#15140F] flex items-center justify-center text-[10px] font-black">
-              {currentUser.name.substring(0, 1).toUpperCase()}
-            </div>
-            <span className="hidden md:inline max-w-[100px] truncate">{currentUser.name}</span>
-          </button>
-        </div>
-      </div>
-
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-8">
         {/* Fullscreen Hero Portal Entrance */}
         <div className="min-h-[calc(100vh-84px)] flex flex-col justify-between relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#1D1B14] via-[#1A1812] to-[#15140F] border border-[#38352A] p-6 sm:p-10 lg:p-12 shadow-2xl">
@@ -192,45 +107,6 @@ export const HubView: React.FC<HubViewProps> = ({
         {/* Lower sections: Appears smoothly when scrolling down */}
         <div id="hub-content" className="space-y-6 pt-2">
 
-        {/* Featured Quick Banner Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Card 1: VTT */}
-          <div
-            onClick={() => onNavigateView("vtt")}
-            className="p-4 bg-[#1D1B14] border border-[#4B6B4E]/50 hover:border-[#8DAE8F] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#8DAE8F]">MESA VTT ATIVA</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Entrar no Battlemap</h4>
-            </div>
-            <ExternalLink className="w-5 h-5 text-[#8DAE8F] group-hover:scale-110 transition-transform" />
-          </div>
-
-          {/* Card 3: Bestiário */}
-          <div
-            onClick={onOpenBestiary}
-            className="p-4 bg-[#1D1B14] border border-[#B08635]/50 hover:border-[#DFB56C] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#DFB56C]">BESTIÁRIO RPG</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Catálogo de Monstros</h4>
-            </div>
-            <Flame className="w-5 h-5 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-          </div>
-
-          {/* Card 4: Macros */}
-          <div
-            onClick={onOpenMacroManager}
-            className="p-4 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] text-[#EFE8D8] rounded-2xl shadow-lg cursor-pointer hover:bg-[#232018] transition-all flex items-center justify-between group"
-          >
-            <div>
-              <p className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#DFB56C]">MACROS ARCANAS</p>
-              <h4 className="font-bold text-sm text-[#EFE8D8]">Rolagens Rápidas</h4>
-            </div>
-            <Zap className="w-5 h-5 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-          </div>
-        </div>
-
         {/* Active Character Quick Bar (if character is selected) */}
         {activeCharacter && (
           <div className="bg-[#1D1B14] border border-[#38352A] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
@@ -282,43 +158,57 @@ export const HubView: React.FC<HubViewProps> = ({
           </div>
         )}
 
-        {characters.length > 1 && (
+        {characters.length > 0 && (
           <section aria-labelledby="character-list-title" className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <h3 id="character-list-title" className="text-xs font-mono font-bold uppercase tracking-wider text-[#DFB56C]">
                 Minhas fichas ({characters.length})
               </h3>
-              <span className="text-[10px] text-[#A79C82]">Selecione uma ficha para abrir</span>
+              <button type="button" onClick={onOpenTrash} className="flex items-center gap-1 text-[10px] text-[#A79C82] hover:text-[#DFB56C]" title="Abrir lixeira de fichas"><Trash2 className="h-3 w-3" /> Lixeira</button>
             </div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
               {characters.map((character) => {
                 const isActive = character.id === activeCharacter?.id;
                 return (
-                  <button
+                  <article
                     key={character.id}
-                    type="button"
-                    onClick={() => onOpenCharacterSheet(character)}
-                    aria-current={isActive ? "true" : undefined}
-                    className={`flex min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition-colors cursor-pointer ${
+                    className={`flex min-w-0 items-center rounded-xl border transition-colors ${
                       isActive
                         ? "border-[#DFB56C] bg-[#DFB56C]/10"
                         : "border-[#38352A] bg-[#1D1B14] hover:border-[#DFB56C]/70 hover:bg-[#232018]"
                     }`}
                   >
-                    <div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#38352A] bg-[#15140F] flex items-center justify-center">
-                      {character.avatarUrl ? (
-                        <img src={character.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="font-serif font-bold text-[#DFB56C]">{character.name.slice(0, 2).toUpperCase()}</span>
-                      )}
-                    </div>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-bold text-[#EFE8D8]">{character.name}</span>
-                      <span className="block truncate text-[10px] font-mono text-[#A79C82]">
-                        Nível {character.level} • {character.characterClass}
+                    <button
+                      type="button"
+                      onClick={() => onOpenCharacterSheet(character)}
+                      aria-current={isActive ? "true" : undefined}
+                      className="flex min-w-0 flex-1 items-center gap-3 p-3 text-left cursor-pointer"
+                      title={`Abrir ficha de ${character.name}`}
+                    >
+                      <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-[#38352A] bg-[#15140F] flex items-center justify-center">
+                        {character.avatarUrl ? (
+                          <img src={character.avatarUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="font-serif font-bold text-[#DFB56C]">{character.name.slice(0, 2).toUpperCase()}</span>
+                        )}
                       </span>
-                    </span>
-                  </button>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-bold text-[#EFE8D8]">{character.name}</span>
+                        <span className="block truncate text-[10px] font-mono text-[#A79C82]">
+                          Nível {character.level} • {character.characterClass}
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteCharacter(character)}
+                      className="mr-2 rounded-lg border border-transparent p-2 text-[#A79C82] transition-colors hover:border-[#7A2E27] hover:bg-[#7A2E27]/20 hover:text-[#E07A70] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DFB56C] cursor-pointer"
+                      aria-label={`Excluir ficha de ${character.name}`}
+                      title={`Excluir ficha de ${character.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </article>
                 );
               })}
             </div>
@@ -337,9 +227,9 @@ export const HubView: React.FC<HubViewProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* 1. Ficha de Personagem */}
-            <div
+            <button type="button"
               onClick={() => onOpenCharacterSheet(activeCharacter || undefined)}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#DFB56C]/15 border border-[#DFB56C]/40 flex items-center justify-center text-[#DFB56C]">
@@ -357,12 +247,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Criação e edição completa com atributos, perícias, magias, inventário e anotações.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 2. Mesa Virtual (VTT) */}
-            <div
+            <button type="button"
               onClick={() => onNavigateView("vtt")}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#4B6B4E]/20 border border-[#4B6B4E]/40 flex items-center justify-center text-[#8DAE8F]">
@@ -380,12 +270,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Grade tática, névoa de guerra, régua de alcance e movimentação com proteção de permissões.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 3. Bestiário de Monstros */}
-            <div
+            <button type="button"
               onClick={onOpenBestiary}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#7A2E27]/25 border border-[#7A2E27]/50 flex items-center justify-center text-[#C4645A]">
@@ -403,12 +293,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Consulte fichas de monstros, execute rolagens de ataque e invoque tokens diretamente no mapa.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 5. Rolador de Dados Arcano */}
-            <div
+            <button type="button"
               onClick={onOpenDiceRoller}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#DFB56C]/15 border border-[#DFB56C]/40 flex items-center justify-center text-[#DFB56C]">
@@ -426,12 +316,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Lançamento de dados com animação 3D, fórmulas customizadas, histórico e vantagens.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 6. Gerenciador de Macros */}
-            <div
+            <button type="button"
               onClick={onOpenMacroManager}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#B08635]/20 border border-[#B08635]/40 flex items-center justify-center text-[#DFB56C]">
@@ -449,12 +339,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Crie atalhos rápidos com fórmulas dinâmicas (@strMod, @level) enviadas direto para o chat.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 7. Pastas de NPCs & Lore */}
-            <div
+            <button type="button"
               onClick={onOpenNpcFolders}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#4B6B4E]/20 border border-[#4B6B4E]/40 flex items-center justify-center text-[#8DAE8F]">
@@ -472,12 +362,12 @@ export const HubView: React.FC<HubViewProps> = ({
                   Estruture personagens não jogáveis em pastas personalizadas com notas e atitudes.
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* 8. Galeria de Mídia & Lightbox */}
-            <div
+            <button type="button"
               onClick={onOpenMediaLibrary}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#DFB56C]/15 border border-[#DFB56C]/40 flex items-center justify-center text-[#DFB56C]">
@@ -495,19 +385,19 @@ export const HubView: React.FC<HubViewProps> = ({
                   Armazene artes conceituais, mapas de batalha e tokens em alta definição com lightbox.
                 </p>
               </div>
-            </div>
+            </button>
 
-            {/* 9. Campanhas locais */}
-            <div
+            {/* 9. Campanhas online */}
+            <button type="button"
               onClick={onOpenCampaignManager}
-              className="p-5 bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
+              className="p-5 text-left bg-[#1D1B14] border border-[#38352A] hover:border-[#DFB56C] rounded-2xl shadow-xl transition-all cursor-pointer group hover:-translate-y-0.5 space-y-3"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-xl bg-[#B08635]/20 border border-[#B08635]/40 flex items-center justify-center text-[#DFB56C]">
                   <Crown className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-[10px] font-mono bg-[#15140F] text-[#DFB56C] px-2 py-0.5 rounded border border-[#38352A]">
-                  Local
+                  Online
                 </span>
               </div>
               <div>
@@ -518,7 +408,7 @@ export const HubView: React.FC<HubViewProps> = ({
                   Gerenciamento de mesas, papéis de GM / Jogador e sincronização de mensagens IC/OOC.
                 </p>
               </div>
-            </div>
+            </button>
           </div>
         </div>
       </div>

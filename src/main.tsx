@@ -4,10 +4,12 @@ import App from "./App.tsx";
 import { AppErrorBoundary } from "./components/AppErrorBoundary";
 import { migrateLocalStorageSchema } from "./constants/storageKeys";
 import { migrateStoredUsers } from "./utils/securityMigration";
+import { installGlobalErrorReporting } from "./utils/clientTelemetry";
 import "./index.css";
 
 migrateLocalStorageSchema();
 migrateStoredUsers();
+installGlobalErrorReporting();
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Elemento #root não encontrado.");

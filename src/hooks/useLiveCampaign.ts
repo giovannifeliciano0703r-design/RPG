@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BattleMapData, Campaign, ChatMessage, InitiativeState, UserProfile } from "../types";
+import { getCampaignPermissions } from "../domain/campaignPermissions";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import {
   createRemoteCampaign,
   loadCampaignMessages,
   loadCampaignState,
   saveCampaignState,
+  sanitizeRemoteMessageMetadata,
   sendCampaignMessage,
   subscribeToCampaignMessages,
   subscribeToCampaignState,
   type RemoteCampaignMessage,
+  CampaignStateConflictError,
 } from "../services/supabaseCampaigns";
 
 type Options = {
@@ -25,15 +28,19 @@ type Options = {
 
 function toChatMessage(message: RemoteCampaignMessage, user: UserProfile | null): ChatMessage {
   const isCurrentUser = message.author_id === user?.id;
+  const { senderName, senderAvatar, characterId, imageUrl, rollData } = sanitizeRemoteMessageMetadata(message.metadata);
   return {
     id: message.id,
     senderId: message.author_id,
-    senderName: isCurrentUser ? user!.name : "Aventureiro online",
-    senderAvatar: isCurrentUser ? user!.avatar : "wizard",
+    senderName: senderName || (isCurrentUser ? user!.name : "Aventureiro online"),
+    senderAvatar: senderAvatar || (isCurrentUser ? user!.avatar : "wizard"),
+    characterId,
     channel: message.channel === "IC" ? "IC" : "OOC",
     content: message.body,
     timestamp: new Date(message.created_at).getTime(),
-    type: "TEXT",
+    type: message.message_type || "TEXT",
+    rollData,
+    imageUrl,
   };
 }
 
@@ -41,8 +48,14 @@ export function useLiveCampaign(options: Options) {
   const { campaign, user, battlemap, initiative, setCampaign, setMessages, setBattlemap, setInitiative } = options;
   const [status, setStatus] = useState<"offline" | "connecting" | "online" | "error">("offline");
   const [error, setError] = useState<string | null>(null);
-  const applyingRemoteRef = useRef(false);
+  const [hydratedRemoteId, setHydratedRemoteId] = useState<string | null>(null);
+  const receivedRemoteMapRef = useRef<BattleMapData | null>(null);
+  const receivedRemoteInitiativeRef = useRef<InitiativeState | null>(null);
+  const revisionsRef = useRef<Record<string, number>>({ battlemap: 0, initiative: 0 });
+  const dataLoadedRef = useRef(false);
+  const realtimeReadyRef = useRef({ messages: false, state: false });
   const remoteId = campaign?.remoteId;
+  const { canEditMaps, canManageInitiative } = getCampaignPermissions(campaign, user?.id);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !campaign || !user || campaign.remoteId) return;
@@ -60,64 +73,137 @@ export function useLiveCampaign(options: Options) {
   }, [campaign, setCampaign, user]);
 
   useEffect(() => {
-    if (!remoteId || !supabase) return;
+    const client = supabase;
+    if (!remoteId || !client) return;
     let cancelled = false;
+    dataLoadedRef.current = false;
+    realtimeReadyRef.current = { messages: false, state: false };
+    setHydratedRemoteId(null);
     setStatus("connecting");
+    const handleChannelStatus = (channel: "messages" | "state", channelStatus: string) => {
+      if (cancelled) return;
+      realtimeReadyRef.current[channel] = channelStatus === "SUBSCRIBED";
+      if (["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(channelStatus)) {
+        setStatus("error");
+        setError("A conexão em tempo real foi interrompida. O aplicativo tentará reconectar.");
+      } else if (dataLoadedRef.current && realtimeReadyRef.current.messages && realtimeReadyRef.current.state) {
+        setStatus("online");
+        setError(null);
+      } else {
+        setStatus("connecting");
+      }
+    };
     void Promise.all([
       loadCampaignMessages(remoteId),
       loadCampaignState<BattleMapData>(remoteId, "battlemap"),
       loadCampaignState<InitiativeState>(remoteId, "initiative"),
     ]).then(([remoteMessages, remoteMap, remoteInitiative]) => {
       if (cancelled) return;
-      applyingRemoteRef.current = true;
       if (remoteMessages.length) setMessages(remoteMessages.map((message) => toChatMessage(message, user)));
-      if (remoteMap) setBattlemap(remoteMap);
-      if (remoteInitiative) setInitiative(remoteInitiative);
-      queueMicrotask(() => { applyingRemoteRef.current = false; });
-      setStatus("online");
+      if (remoteMap) {
+        revisionsRef.current.battlemap = remoteMap.revision;
+        receivedRemoteMapRef.current = remoteMap.payload;
+        setBattlemap(remoteMap.payload);
+      }
+      if (remoteInitiative) {
+        revisionsRef.current.initiative = remoteInitiative.revision;
+        receivedRemoteInitiativeRef.current = remoteInitiative.payload;
+        setInitiative(remoteInitiative.payload);
+      }
+      dataLoadedRef.current = true;
+      setHydratedRemoteId(remoteId);
+      if (realtimeReadyRef.current.messages && realtimeReadyRef.current.state) setStatus("online");
     }).catch((cause) => {
       if (!cancelled) { setStatus("error"); setError(cause instanceof Error ? cause.message : "Falha na sincronização."); }
     });
     const messageChannel = subscribeToCampaignMessages(remoteId, (message) => {
       setMessages((previous) => previous.some((item) => item.id === message.id) ? previous : [...previous, toChatMessage(message, user)]);
-    });
-    const stateChannel = subscribeToCampaignState(remoteId, (key, payload) => {
-      applyingRemoteRef.current = true;
-      if (key === "battlemap") setBattlemap(payload as BattleMapData);
-      if (key === "initiative") setInitiative(payload as InitiativeState);
-      queueMicrotask(() => { applyingRemoteRef.current = false; });
-    });
+    }, (channelStatus) => handleChannelStatus("messages", channelStatus));
+    const stateChannel = subscribeToCampaignState(remoteId, (key, payload, revision) => {
+      revisionsRef.current[key] = revision;
+      if (key === "battlemap") {
+        receivedRemoteMapRef.current = payload as BattleMapData;
+        setBattlemap(payload as BattleMapData);
+      }
+      if (key === "initiative") {
+        receivedRemoteInitiativeRef.current = payload as InitiativeState;
+        setInitiative(payload as InitiativeState);
+      }
+    }, (channelStatus) => handleChannelStatus("state", channelStatus));
     return () => {
       cancelled = true;
-      if (messageChannel) void supabase.removeChannel(messageChannel);
-      if (stateChannel) void supabase.removeChannel(stateChannel);
+      if (messageChannel) void client.removeChannel(messageChannel);
+      if (stateChannel) void client.removeChannel(stateChannel);
     };
   }, [remoteId, setBattlemap, setInitiative, setMessages, user]);
 
   useEffect(() => {
-    if (!remoteId || applyingRemoteRef.current || campaign?.gmUserId !== user?.id) return;
-    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap).catch(() => setStatus("error")), 900);
+    if (!remoteId || hydratedRemoteId !== remoteId || !canEditMaps) return;
+    if (battlemap === receivedRemoteMapRef.current) {
+      receivedRemoteMapRef.current = null;
+      return;
+    }
+    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "battlemap", battlemap, revisionsRef.current.battlemap)
+      .then((revision) => {
+        revisionsRef.current.battlemap = revision;
+        setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+      })
+      .catch(async (cause) => {
+        setStatus("error");
+        if (cause instanceof CampaignStateConflictError) {
+          const latest = await loadCampaignState<BattleMapData>(remoteId, "battlemap");
+          if (latest) {
+            revisionsRef.current.battlemap = latest.revision;
+            receivedRemoteMapRef.current = latest.payload;
+            setBattlemap(latest.payload);
+          }
+          setError(cause.message);
+        } else setError(cause instanceof Error ? cause.message : "Falha ao salvar o mapa.");
+      }), 900);
     return () => window.clearTimeout(timer);
-  }, [battlemap, campaign?.gmUserId, remoteId, user?.id]);
+  }, [battlemap, canEditMaps, hydratedRemoteId, remoteId, setBattlemap]);
 
   useEffect(() => {
-    if (!remoteId || applyingRemoteRef.current || campaign?.gmUserId !== user?.id) return;
-    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative).catch(() => setStatus("error")), 700);
+    if (!remoteId || hydratedRemoteId !== remoteId || !canManageInitiative) return;
+    if (initiative === receivedRemoteInitiativeRef.current) {
+      receivedRemoteInitiativeRef.current = null;
+      return;
+    }
+    const timer = window.setTimeout(() => void saveCampaignState(remoteId, "initiative", initiative, revisionsRef.current.initiative)
+      .then((revision) => {
+        revisionsRef.current.initiative = revision;
+        setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+      })
+      .catch(async (cause) => {
+        setStatus("error");
+        if (cause instanceof CampaignStateConflictError) {
+          const latest = await loadCampaignState<InitiativeState>(remoteId, "initiative");
+          if (latest) {
+            revisionsRef.current.initiative = latest.revision;
+            receivedRemoteInitiativeRef.current = latest.payload;
+            setInitiative(latest.payload);
+          }
+          setError(cause.message);
+        } else setError(cause instanceof Error ? cause.message : "Falha ao salvar a iniciativa.");
+      }), 700);
     return () => window.clearTimeout(timer);
-  }, [campaign?.gmUserId, initiative, remoteId, user?.id]);
+  }, [canManageInitiative, hydratedRemoteId, initiative, remoteId, setInitiative]);
 
   const sendMessage = useCallback(async (message: Partial<ChatMessage>) => {
     if (!remoteId) return false;
     try {
-      await sendCampaignMessage(remoteId, message.content || "", message.channel === "IC" ? "IC" : "OOC");
-      setStatus("online");
+      const savedMessage = await sendCampaignMessage(remoteId, message);
+      setMessages((previous) => previous.some((item) => item.id === savedMessage.id)
+        ? previous
+        : [...previous, toChatMessage(savedMessage, user)]);
+      setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
       return true;
     } catch (cause) {
       setStatus("error");
       setError(cause instanceof Error ? cause.message : "Mensagem mantida apenas neste dispositivo.");
       return false;
     }
-  }, [remoteId]);
+  }, [remoteId, setMessages, user]);
 
-  return { status, error, clearError: () => setError(null), sendMessage };
+  return { status, error, isReady: hydratedRemoteId === remoteId && Boolean(remoteId), clearError: () => setError(null), sendMessage };
 }

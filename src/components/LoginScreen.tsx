@@ -21,6 +21,9 @@ import {
 import { UserProfile } from "../types";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { toUserProfile } from "../auth/supabaseAuth";
+import { getPasswordPolicyError, isPasswordPolicySatisfied, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "../utils/passwordPolicy";
+import { CURRENT_PRIVACY_VERSION } from "../constants/compliance";
+import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, getDisplayNameError, normalizeDisplayName } from "../utils/displayName";
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
@@ -46,6 +49,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
 
   const triggerHaptic = (ms: number = 25) => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -74,6 +80,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       if (!password) throw new Error("Informe sua senha para entrar.");
       const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error || !data.user) throw new Error(error?.message || "E-mail ou senha inválidos.");
+      const [{ data: factors, error: factorsError }, { data: assurance, error: assuranceError }] = await Promise.all([
+        supabase.auth.mfa.listFactors(),
+        supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+      ]);
+      if (factorsError) throw factorsError;
+      if (assuranceError) throw assuranceError;
+      const verifiedFactor = factors.totp.find((factor) => factor.status === "verified");
+      if (verifiedFactor && assurance.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
+        setMfaFactorId(verifiedFactor.id);
+        setSuccessMessage("Senha confirmada. Digite agora o código do seu aplicativo autenticador.");
+        return;
+      }
       onLogin(await toUserProfile(data.user), true);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao entrar.");
@@ -83,25 +101,48 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     }
   };
 
+  const handleMfaSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMessage(""); setSuccessMessage("");
+    if (!/^\d{6}$/.test(mfaCode)) return setErrorMessage("Digite o código de 6 números do aplicativo autenticador.");
+    setIsLoading(true);
+    try {
+      if (!supabase || !mfaFactorId) throw new Error("Entre novamente para confirmar sua identidade.");
+      const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaFactorId, code: mfaCode });
+      if (error) throw error;
+      const { data, error: userError } = await supabase.auth.getUser();
+      if (userError || !data.user) throw new Error(userError?.message || "Sessão não encontrada.");
+      onLogin(await toUserProfile(data.user), true);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Código inválido ou expirado.");
+      setMfaCode("");
+    } finally { setIsLoading(false); }
+  };
+
+  const cancelMfa = async () => {
+    if (supabase) await supabase.auth.signOut();
+    setMfaFactorId(""); setMfaCode(""); setPassword(""); setSuccessMessage(""); setErrorMessage("");
+  };
+
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (!name.trim()) {
-      setErrorMessage("Informe o nome do seu Aventureiro ou Mestre.");
-      return;
-    }
+    const displayNameError = getDisplayNameError(name);
+    if (displayNameError) return setErrorMessage(displayNameError);
     if (!email.trim() || !email.includes("@")) {
       setErrorMessage("Informe um endereço de e-mail válido.");
       return;
     }
-    if (password.length < 8) {
-      setErrorMessage("Crie uma senha com pelo menos 8 caracteres.");
-      return;
-    }
+    const passwordPolicyError = getPasswordPolicyError(password);
+    if (passwordPolicyError) return setErrorMessage(passwordPolicyError);
     if (password !== confirmPassword) {
       setErrorMessage("As senhas não coincidem.");
+      return;
+    }
+    if (!acceptedTerms) {
+      setErrorMessage("Leia e aceite os Termos de Uso e a Política de Privacidade.");
       return;
     }
     setIsLoading(true);
@@ -112,7 +153,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
-        options: { data: { display_name: name.trim(), avatar: selectedAvatar } },
+        options: { data: { display_name: normalizeDisplayName(name), avatar: selectedAvatar, accepted_terms: true, privacy_version: CURRENT_PRIVACY_VERSION } },
       });
       if (error) throw error;
       if (!data.user) throw new Error("Não foi possível criar a conta.");
@@ -128,6 +169,28 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       setIsLoading(false);
       setPassword("");
       setConfirmPassword("");
+    }
+  };
+
+  const handlePasswordRecovery = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    if (!email.trim() || !email.includes("@")) {
+      setErrorMessage("Informe o e-mail da conta para recuperar a senha.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      if (!supabase) throw new Error("O cadastro online ainda não foi configurado.");
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/`,
+      });
+      if (error) throw error;
+      setSuccessMessage("Se existir uma conta com esse e-mail, enviaremos as instruções de recuperação.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Não foi possível enviar a recuperação.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -228,7 +291,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </div>
             )}
 
-            {tab === "login" ? (
+            {mfaFactorId ? (
+              <form onSubmit={handleMfaSubmit} className="space-y-3.5">
+                <div>
+                  <label htmlFor="login-mfa-code" className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-1.5">Código de verificação</label>
+                  <input id="login-mfa-code" autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} required value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, ""))} placeholder="000000" className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-3 px-3 text-center text-lg tracking-[0.4em] text-[#EFE8D8] focus:outline-none focus:border-[#DFB56C]" />
+                </div>
+                <button type="submit" disabled={isLoading || mfaCode.length !== 6} className="w-full min-h-[48px] bg-[#7A2E27] text-white font-serif font-bold rounded-xl disabled:opacity-50">Confirmar identidade</button>
+                <button type="button" disabled={isLoading} onClick={() => void cancelMfa()} className="w-full py-2 text-xs text-[#A79C82] hover:text-[#EFE8D8]">Cancelar e sair</button>
+              </form>
+            ) : tab === "login" ? (
               /* ================= LOGIN FORM ================= */
               <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                 <div>
@@ -280,6 +352,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={handlePasswordRecovery}
+                    disabled={isLoading}
+                    className="text-[11px] font-mono text-[#DFB56C] hover:text-[#EFE8D8] underline underline-offset-4 disabled:opacity-50"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+
                 <p className="text-[#8A8270] text-[10px] font-mono pt-1">
                   O acesso exige uma conta confirmada e autenticada pelo Supabase.
                 </p>
@@ -314,6 +397,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       type="text"
                       autoComplete="name"
                       required
+                      minLength={DISPLAY_NAME_MIN_LENGTH}
+                      maxLength={DISPLAY_NAME_MAX_LENGTH}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Como você quer ser chamado"
@@ -354,11 +439,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
-                      minLength={8}
+                      minLength={PASSWORD_MIN_LENGTH}
+                      maxLength={PASSWORD_MAX_LENGTH}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
                       aria-describedby="password-help"
-                      placeholder="Mínimo de 8 caracteres"
+                      placeholder={`Mínimo de ${PASSWORD_MIN_LENGTH} caracteres`}
                       className="w-full bg-[#15140F] border border-[#38352A] rounded-xl py-2.5 pl-10 pr-10 text-sm text-[#EFE8D8] placeholder-[#5C5641] focus:outline-none focus:border-[#DFB56C] transition-colors font-mono"
                     />
                     <button
@@ -371,8 +457,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p id="password-help" className={`mt-1.5 text-[10px] font-mono ${password.length >= 8 ? "text-[#8DAE8F]" : "text-[#A79C82]"}`}>
-                    {password.length >= 8 ? "✓ Senha com tamanho mínimo" : "Use pelo menos 8 caracteres"}
+                  <p id="password-help" className={`mt-1.5 text-[10px] font-mono ${isPasswordPolicySatisfied(password) ? "text-[#8DAE8F]" : "text-[#A79C82]"}`}>
+                    {isPasswordPolicySatisfied(password) ? "✓ Senha com tamanho seguro" : `Use de ${PASSWORD_MIN_LENGTH} a ${PASSWORD_MAX_LENGTH} caracteres`}
                   </p>
                 </div>
 
@@ -399,10 +485,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
                 {/* Avatar Selection */}
                 <div>
-                  <label className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2">
+                  <p className="block text-[11px] font-mono uppercase tracking-wider text-[#A79C82] mb-2" id="register-avatar-label">
                     Escolha seu Brasão Arcano
-                  </label>
-                  <div className="grid grid-cols-6 gap-2">
+                  </p>
+                  <div className="grid grid-cols-6 gap-2" role="group" aria-labelledby="register-avatar-label">
                     {AVATARS.map((av) => {
                       const IconComp = av.icon;
                       const isSel = selectedAvatar === av.id;
@@ -430,9 +516,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                   </div>
                 </div>
 
+                <label className="flex items-start gap-2 text-[11px] leading-relaxed text-[#A79C82]">
+                  <input type="checkbox" required checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="mt-0.5 accent-[#DFB56C]" />
+                  <span>Li e aceito os <a href="/terms.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Termos de Uso</a> e a <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Política de Privacidade</a>.</span>
+                </label>
+
                 <button
                   type="submit"
-                  disabled={isLoading || password.length < 8 || password !== confirmPassword}
+                  disabled={isLoading || !isPasswordPolicySatisfied(password) || password !== confirmPassword || !acceptedTerms}
                   className="w-full min-h-[48px] bg-[#7A2E27] hover:bg-[#8F392F] active:scale-98 text-white font-serif font-bold text-base rounded-xl shadow-lg shadow-[#7A2E27]/30 flex items-center justify-center gap-2 transition-all cursor-pointer mt-3 disabled:opacity-50"
                 >
                   {isLoading ? (
@@ -453,7 +544,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
 
       {/* Footer */}
       <footer className="relative z-10 text-center py-3 text-[11px] font-mono text-[#A79C82] border-t border-[#38352A] bg-[#15140F]/80">
-        Mestre Arcano • Fichas, campanhas, bestiário e mesa virtual para RPG
+        Mestre Arcano • <a href="/terms.html" className="hover:text-[#EFE8D8] underline">Termos</a> • <a href="/privacy.html" className="hover:text-[#EFE8D8] underline">Privacidade</a>
       </footer>
     </div>
   );

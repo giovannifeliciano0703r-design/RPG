@@ -1,0 +1,71 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(55);
+
+select has_table('public', 'campaign_invites', 'campaign invites exist');
+select has_table('public', 'campaign_state_history', 'campaign state history exists');
+select has_table('public', 'audit_events', 'audit trail exists');
+select has_table('public', 'user_app_state', 'per-account state exists');
+select has_table('public', 'user_app_state_history', 'per-account state history exists');
+select has_table('public', 'trash_items', 'recoverable user trash exists');
+select has_table('private', 'campaign_invite_attempts', 'invite attempts are rate limited outside the exposed API schema');
+select has_function('public', 'create_campaign_invite', array['uuid','integer','integer'], 'invite creation RPC exists');
+select has_function('public', 'join_campaign_by_invite', array['text'], 'invite join RPC exists');
+select has_function('public', 'save_campaign_state_versioned', array['uuid','text','jsonb','bigint'], 'versioned state RPC exists');
+select has_function('public', 'delete_my_account', array['text'], 'self-deletion RPC exists');
+select has_function('public', 'save_my_app_state_batch', array['jsonb','uuid'], 'atomic per-account state RPC exists');
+select has_function('public', 'revoke_campaign_invite', array['uuid'], 'invite revocation RPC exists');
+select has_function('public', 'remove_campaign_member', array['uuid','uuid'], 'membership removal RPC exists');
+select has_function('public', 'has_campaign_permission', array['uuid','text'], 'server-side campaign permission checker exists');
+select has_function('public', 'delete_owned_campaign', array['uuid'], 'audited campaign deletion RPC exists');
+select has_function('public', 'accept_current_terms', array['text'], 'current legal consent RPC exists');
+select policies_are('public', 'trash_items', array['trash_items_own'], 'trash is private to its owner');
+select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='campaign_members'), 1, 'campaign roster is realtime');
+select is((select count(*)::integer from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='user_app_state'), 1, 'account state is realtime');
+select has_column('public', 'media_assets', 'thumbnail_path', 'media supports dedicated thumbnails');
+select has_trigger('public', 'media_assets', 'media_quota_before_write', 'media quota is enforced in the database');
+select has_trigger('public', 'campaign_messages', 'campaign_messages_rate_limit_before_insert', 'message spam limit is enforced in the database');
+select has_index('public', 'campaign_messages', 'campaign_messages_author_created_idx', 'message rate-limit lookup is indexed');
+select has_index('private', 'campaign_invite_attempts', 'campaign_invite_attempts_user_time_idx', 'invite attempt rate-limit lookup is indexed');
+select has_column('public', 'campaign_messages', 'message_type', 'online chat preserves message types');
+select has_column('public', 'campaign_messages', 'metadata', 'online chat preserves bounded presentation metadata');
+select is((
+  select count(*)::integer
+  from pg_constraint constraint_record
+  join pg_class table_record on table_record.oid = constraint_record.conrelid
+  join pg_namespace schema_record on schema_record.oid = table_record.relnamespace
+  where schema_record.nspname = 'public' and table_record.relname = 'campaign_messages'
+    and constraint_record.conname = 'campaign_messages_metadata_shape'
+    and constraint_record.contype = 'c'
+), 1, 'online chat metadata is validated in the database');
+select is(public.is_valid_campaign_message_metadata('{"senderName":"Eldrin","rollData":{"formula":"1d20","total":15,"rolls":[15]}}'::jsonb), true, 'valid rich chat metadata is accepted');
+select is(public.is_valid_campaign_message_metadata('{"imageUrl":"javascript:alert(1)"}'::jsonb), false, 'unsafe rich chat metadata is rejected');
+
+select policies_are('public', 'campaign_invites', array['campaign_invites_read_managers'], 'invites have a restrictive read policy');
+select policies_are('public', 'campaign_state_history', array['state_history_read_managers'], 'history is restricted to managers');
+select policies_are('public', 'audit_events', array['audit_events_read_managers'], 'audit events are access controlled');
+select policies_are('public', 'profiles', array['profiles_read_relevant','profiles_update_self'], 'profiles are visible only to relevant authenticated users');
+select policies_are('public', 'campaign_members', array['members_read'], 'membership reads use one policy and writes require protected RPCs');
+select policies_are('public', 'media_assets', array['media_delete_own','media_insert_own','media_read','media_update_own'], 'media access separates read and write policies');
+select col_is_pk('public', 'campaign_members', array['campaign_id','user_id'], 'campaign membership cannot be duplicated');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'INSERT'), false, 'clients cannot insert campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'UPDATE'), false, 'clients cannot update campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaign_members', 'DELETE'), false, 'clients cannot delete campaign membership directly');
+select is(has_table_privilege('authenticated', 'public.campaigns', 'DELETE'), false, 'clients cannot delete campaigns outside the audited RPC');
+select is(has_table_privilege('authenticated', 'public.profiles', 'UPDATE'), false, 'clients cannot update protected profile columns directly');
+select is(has_column_privilege('authenticated', 'public.profiles', 'display_name', 'UPDATE'), true, 'clients can update their display name through RLS');
+select is(has_column_privilege('authenticated', 'public.profiles', 'privacy_version', 'UPDATE'), false, 'clients cannot forge legal consent fields');
+select is(has_table_privilege('authenticated', 'private.campaign_invite_attempts', 'SELECT'), false, 'clients cannot inspect invite attempts');
+select is(has_table_privilege('authenticated', 'private.campaign_invite_attempts', 'INSERT'), false, 'clients cannot forge invite attempts');
+select is(has_function_privilege('anon', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the campaign history trigger');
+select is(has_function_privilege('authenticated', 'public.archive_campaign_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the campaign history trigger');
+select is(has_function_privilege('anon', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'anonymous clients cannot call the account history trigger');
+select is(has_function_privilege('authenticated', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the account history trigger');
+select is(has_function_privilege('anon', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'anonymous clients cannot call the campaign policy helper');
+select is(has_function_privilege('authenticated', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'signed-in clients cannot call the campaign policy helper directly');
+select is(has_function_privilege('anon', 'public.enforce_media_quota()', 'EXECUTE'), false, 'anonymous clients cannot call the media quota trigger');
+select is(has_function_privilege('authenticated', 'public.enforce_media_quota()', 'EXECUTE'), false, 'signed-in clients cannot call the media quota trigger');
+select is((select count(*)::integer from pg_policies where schemaname = 'public' and ((coalesce(qual, '') ilike '%auth.uid()%' and coalesce(qual, '') not ilike '%select auth.uid()%') or (coalesce(with_check, '') ilike '%auth.uid()%' and coalesce(with_check, '') not ilike '%select auth.uid()%'))), 0, 'RLS caches the authenticated user id once per statement');
+
+select * from finish();
+rollback;
