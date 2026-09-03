@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { settleInScope } from "../utils/scopedAsync";
 import { loadUserAppState, saveUserAppState, STATE_COLUMNS, subscribeToUserAppState, UserAppStateConflictError, type UserAppState, type UserAppStateKey } from "../services/supabaseUserState";
 
 const CACHE_OWNER_KEY = "mestre_arcano_cache_owner:v1";
@@ -30,7 +31,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   const applyStateRef = useRef(applyState);
   const createFreshStateRef = useRef(createFreshState);
   const onErrorRef = useRef(onError);
-  const activeUserRef = useRef(userId);
+  const accountScopeRef = useRef({ userId });
   const revisionsRef = useRef<Record<string, number>>({});
   const lastSyncedStateRef = useRef<Partial<UserAppState>>({});
   const saveInFlightRef = useRef(false);
@@ -40,7 +41,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   applyStateRef.current = applyState;
   createFreshStateRef.current = createFreshState;
   onErrorRef.current = onError;
-  activeUserRef.current = userId;
+  if (accountScopeRef.current.userId !== userId) accountScopeRef.current = { userId };
 
   useEffect(() => {
     if (!userId || !isSupabaseConfigured) {
@@ -67,7 +68,9 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
           const cachedOwner = localStorage.getItem(CACHE_OWNER_KEY);
           const initialState = selectInitialAccountState(cachedOwner, userId, stateRef.current, createFreshStateRef.current());
           if (cachedOwner !== userId) applyStateRef.current(initialState);
-          revisionsRef.current = await saveUserAppState(userId, initialState);
+          const initialRevisions = await saveUserAppState(userId, initialState);
+          if (cancelled) return;
+          revisionsRef.current = initialRevisions;
           lastSyncedStateRef.current = initialState;
         }
         if (cancelled) return;
@@ -90,17 +93,22 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   useEffect(() => {
     const client = supabase;
     if (!userId || hydratedUserRef.current !== userId || !client) return;
+    const scope = accountScopeRef.current;
+    let cancelled = false;
     const channel = subscribeToUserAppState(userId, (patch, stateKey, revision) => {
+      if (cancelled || accountScopeRef.current !== scope) return;
       revisionsRef.current[stateKey] = revision;
       lastSyncedStateRef.current = { ...lastSyncedStateRef.current, ...patch };
       applyStateRef.current(patch);
       setIsSynced(true);
     });
-    return () => { if (channel) void client.removeChannel(channel); };
+    return () => { cancelled = true; if (channel) void client.removeChannel(channel); };
   }, [isLoading, userId]);
 
   useEffect(() => {
     if (!userId || hydratedUserRef.current !== userId) return;
+    const scope = accountScopeRef.current;
+    const isCurrent = () => accountScopeRef.current === scope;
     setIsSynced(false);
     const timer = window.setTimeout(() => {
       if (saveInFlightRef.current) {
@@ -116,7 +124,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
       saveInFlightRef.current = true;
       void saveUserAppState(userId, snapshot, revisionsRef.current, changedProperties)
         .then((revisions) => {
-          if (activeUserRef.current !== userId) return;
+          if (!isCurrent()) return;
           revisionsRef.current = revisions;
           const nextSynced = { ...lastSyncedStateRef.current };
           for (const property of changedProperties) (nextSynced as Record<string, unknown>)[property] = snapshot[property];
@@ -124,18 +132,25 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
           setIsSynced(selectChangedUserStateKeys(nextSynced, stateRef.current).length === 0);
         })
         .catch(async (cause) => {
-          if (activeUserRef.current !== userId) return;
+          if (!isCurrent()) return;
           if (cause instanceof UserAppStateConflictError) {
-            const latest = await loadUserAppState(userId);
-            revisionsRef.current = latest.revisions;
-            lastSyncedStateRef.current = latest.state;
-            applyStateRef.current(latest.state);
+            await settleInScope(
+              () => loadUserAppState(userId),
+              isCurrent,
+              (latest) => {
+                revisionsRef.current = latest.revisions;
+                lastSyncedStateRef.current = latest.state;
+                applyStateRef.current(latest.state);
+              },
+              () => onErrorRef.current("Falha ao recuperar a versão online. Suas alterações continuam pendentes."),
+            );
           }
+          if (!isCurrent()) return;
           onErrorRef.current(cause instanceof Error ? cause.message : "Falha ao salvar seus dados online.");
         })
         .finally(() => {
           saveInFlightRef.current = false;
-          if (activeUserRef.current !== userId) {
+          if (!isCurrent()) {
             setSaveSequence((sequence) => sequence + 1);
             return;
           }
