@@ -100,6 +100,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
     let cancelled = false;
     const channel = subscribeToUserAppState(userId, (patch, stateKey, revision) => {
       if (cancelled || accountScopeRef.current !== scope) return;
+      if (!Number.isSafeInteger(revision) || revision <= (revisionsRef.current[stateKey] ?? 0)) return;
       revisionsRef.current[stateKey] = revision;
       lastSyncedStateRef.current = { ...lastSyncedStateRef.current, ...patch };
       applyStateRef.current(patch);
@@ -143,9 +144,15 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
         .then((revisions) => {
           if (!isCurrent()) return;
           consecutiveFailuresRef.current = 0;
-          revisionsRef.current = revisions;
           const nextSynced = { ...lastSyncedStateRef.current };
-          for (const property of changedProperties) (nextSynced as Record<string, unknown>)[property] = snapshot[property];
+          for (const [property, column] of STATE_COLUMNS) {
+            if (!changedProperties.includes(property)) continue;
+            const acknowledgedRevision = revisions[column];
+            // Realtime may already have delivered a later write by another device.
+            if (!Number.isSafeInteger(acknowledgedRevision) || acknowledgedRevision < (revisionsRef.current[column] ?? 0)) continue;
+            revisionsRef.current[column] = acknowledgedRevision;
+            (nextSynced as Record<string, unknown>)[property] = snapshot[property];
+          }
           lastSyncedStateRef.current = nextSynced;
           setIsSynced(selectChangedUserStateKeys(nextSynced, stateRef.current).length === 0);
         })

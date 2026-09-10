@@ -69,6 +69,33 @@ afterEach(async () => {
 });
 
 describe("account synchronization lifecycle", () => {
+  it("ignores duplicate and out-of-order realtime revisions", async () => {
+    const receive = mocks.subscribe.mock.calls.at(-1)![1];
+    const newest = [{ id: "newest" }] as UserAppState["characters"];
+    await act(async () => receive({ characters: newest }, "characters", 10));
+    await act(async () => receive({ characters: [] }, "characters", 9));
+    expect(snapshot.characters).toBe(newest);
+    await act(async () => receive({ characters: [] }, "characters", 10));
+    expect(snapshot.characters).toBe(newest);
+  });
+
+  it("does not roll back revision tokens when a write acknowledgement arrives late", async () => {
+    let acknowledge!: (value: Record<string, number>) => void;
+    mocks.save.mockImplementationOnce(() => new Promise((resolve) => { acknowledge = resolve; }));
+    await act(async () => edit({ characters: [{ id: "local" }] as UserAppState["characters"] }));
+    await advance(900);
+    const receive = mocks.subscribe.mock.calls.at(-1)![1];
+    const newer = [{ id: "newer-server" }] as UserAppState["characters"];
+    await act(async () => receive({ characters: newer }, "characters", 2));
+    await act(async () => acknowledge({ characters: 1 }));
+    await advance(900);
+    expect(snapshot.characters).toBe(newer);
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    await act(async () => edit({ characters: [] }));
+    await advance(900);
+    expect(mocks.save.mock.calls[1][2].characters).toBe(2);
+  });
+
   it("keeps offline edits pending and saves them after reconnecting", async () => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
     const characters = [{ id: "offline-character" }] as UserAppState["characters"];
