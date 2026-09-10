@@ -15,7 +15,6 @@ import {
   Plus,
   CheckCircle2,
   Heart,
-  ChevronDown,
   Trash2,
 } from "lucide-react";
 import {
@@ -54,8 +53,8 @@ export const HubView: React.FC<HubViewProps> = ({
   return (
     <div className="flex-1 flex flex-col h-full bg-[#15140F] text-[#EFE8D8] overflow-y-auto custom-scrollbar">
       <div className="max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-8">
-        {/* Fullscreen Hero Portal Entrance */}
-        <div className="min-h-[calc(100vh-84px)] flex flex-col justify-between relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#1D1B14] via-[#1A1812] to-[#15140F] border border-[#38352A] p-6 sm:p-10 lg:p-12 shadow-2xl">
+        {/* Compact welcome: account content remains visible without a full-screen detour. */}
+        <div className="min-h-[320px] sm:min-h-[380px] flex flex-col justify-center relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#1D1B14] via-[#1A1812] to-[#15140F] border border-[#38352A] p-6 sm:p-8 lg:p-10 shadow-2xl">
           {/* Subtle warm magical aura effects */}
           <div className="absolute -right-20 -top-20 w-96 h-96 bg-[#B08635]/15 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -left-20 -bottom-20 w-96 h-96 bg-[#7A2E27]/15 rounded-full blur-3xl pointer-events-none" />
@@ -71,12 +70,12 @@ export const HubView: React.FC<HubViewProps> = ({
           </div>
 
           {/* Central Hero Content */}
-          <div className="relative z-10 space-y-5 my-auto py-6">
+          <div className="relative z-10 mt-8 sm:mt-10">
             <div className="space-y-3">
               <div className="text-xs sm:text-sm font-mono tracking-widest text-[#DFB56C] uppercase font-bold">
                 Plataforma de RPG de Mesa & Gestão de Campanhas
               </div>
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black font-serif tracking-tight text-[#EFE8D8] leading-tight drop-shadow-md">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black font-serif tracking-tight text-[#EFE8D8] leading-tight drop-shadow-md">
                 Bem-vindo ao Portal Mestre Arcano
               </h1>
               <p className="text-sm sm:text-lg text-[#D6CEBE] max-w-3xl leading-relaxed">
@@ -84,23 +83,6 @@ export const HubView: React.FC<HubViewProps> = ({
               </p>
             </div>
 
-          </div>
-
-          {/* Bottom scroll down indicator */}
-          <div className="relative z-10 pt-4 flex flex-col items-center justify-center text-center">
-            <button
-              onClick={() => {
-                const el = document.getElementById("hub-content");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="group flex flex-col items-center gap-1 text-[#A79C82] hover:text-[#DFB56C] transition-colors cursor-pointer p-2"
-              title="Rolar para baixo para ver todos os recursos"
-            >
-              <span className="text-xs font-mono tracking-wider uppercase group-hover:underline">
-                Role para baixo para ver os módulos e atalhos
-              </span>
-              <ChevronDown className="w-5 h-5 animate-bounce text-[#DFB56C] mt-1" />
-            </button>
           </div>
         </div>
 
