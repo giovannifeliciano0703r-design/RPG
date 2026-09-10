@@ -27,6 +27,7 @@ import { DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MIN_LENGTH, getDisplayNameError, 
 
 interface LoginScreenProps {
   onLogin: (user: UserProfile, remember?: boolean) => void;
+  initialError?: string | null;
 }
 
 const AVATARS = [
@@ -38,7 +39,7 @@ const AVATARS = [
   { id: "warlock", label: "Bruxo do Pacto", icon: Skull, color: "text-[#C4645A] bg-[#7A2E27]/30 border-[#C4645A]" },
 ];
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, initialError }) => {
   const [tab, setTab] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,7 +47,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [name, setName] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState("wizard");
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState(initialError || "");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);

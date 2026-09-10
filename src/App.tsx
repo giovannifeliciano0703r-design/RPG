@@ -212,7 +212,7 @@ export default function App() {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
   }, []);
 
-  const { currentUser, setCurrentUser, isAuthChecking, isPasswordRecovery, clearPasswordRecovery, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
+  const { currentUser, setCurrentUser, isAuthChecking, authCheckError, isPasswordRecovery, clearPasswordRecovery, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
     onPreferredSystem: setActiveSystem,
   });
   const hasCurrentConsent = Boolean(
@@ -532,7 +532,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} initialError={authCheckError} />;
   }
 
   const isCurrentUserAdmin = isUserAdmin(currentUser);

@@ -7,10 +7,13 @@ type Options = {
   onPreferredSystem: (system: RpgSystem) => void;
 };
 
+export const AUTH_CHECK_TIMEOUT_MS = 10_000;
+
 export function useAppAuth({ onPreferredSystem }: Options) {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [authCheckError, setAuthCheckError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -19,6 +22,11 @@ export function useAppAuth({ onPreferredSystem }: Options) {
       setIsAuthChecking(false);
       return () => { cancelled = true; };
     }
+    const timeout = window.setTimeout(() => {
+      if (cancelled) return;
+      setAuthCheckError("Não foi possível validar sua sessão. Verifique sua conexão e tente entrar novamente.");
+      setIsAuthChecking(false);
+    }, AUTH_CHECK_TIMEOUT_MS);
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
         if (!cancelled) setCurrentUser(null);
@@ -29,7 +37,10 @@ export function useAppAuth({ onPreferredSystem }: Options) {
       if (!cancelled) setCurrentUser(needsMfa ? null : await toUserProfile(data.user));
     })
       .catch(() => undefined)
-      .finally(() => { if (!cancelled) setIsAuthChecking(false); });
+      .finally(() => {
+        window.clearTimeout(timeout);
+        if (!cancelled) setIsAuthChecking(false);
+      });
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
       if (event === "SIGNED_OUT" || !session?.user) {
@@ -47,6 +58,7 @@ export function useAppAuth({ onPreferredSystem }: Options) {
     });
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
       listener.subscription.unsubscribe();
     };
   }, []);
@@ -62,5 +74,5 @@ export function useAppAuth({ onPreferredSystem }: Options) {
     if (supabase) void supabase.auth.signOut().catch(() => undefined);
   }, []);
 
-  return { currentUser, setCurrentUser, isAuthChecking, isPasswordRecovery, clearPasswordRecovery: () => setIsPasswordRecovery(false), login, logout };
+  return { currentUser, setCurrentUser, isAuthChecking, authCheckError, isPasswordRecovery, clearPasswordRecovery: () => setIsPasswordRecovery(false), login, logout };
 }
