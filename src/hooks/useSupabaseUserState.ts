@@ -25,6 +25,7 @@ interface Options {
 export function useSupabaseUserState({ userId, state, applyState, createFreshState, onError }: Options) {
   const [isLoading, setIsLoading] = useState(Boolean(userId));
   const [isSynced, setIsSynced] = useState(false);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const hydratedUserRef = useRef<string | null>(null);
@@ -114,11 +115,21 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
     const scope = accountScopeRef.current;
     const resume = () => {
       if (accountScopeRef.current !== scope) return;
+      setIsOnline(true);
       consecutiveFailuresRef.current = 0;
       setSaveSequence((sequence) => sequence + 1);
     };
+    const pause = () => {
+      if (accountScopeRef.current !== scope) return;
+      setIsOnline(false);
+      setIsSynced(false);
+    };
     window.addEventListener("online", resume);
-    return () => window.removeEventListener("online", resume);
+    window.addEventListener("offline", pause);
+    return () => {
+      window.removeEventListener("online", resume);
+      window.removeEventListener("offline", pause);
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -206,6 +217,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
   return {
     isLoading: Boolean(userId) && (isLoading || hydratedUserRef.current !== userId),
     isSynced,
+    isOnline,
     loadError,
     retry: () => setRetryAttempt((attempt) => attempt + 1),
   };

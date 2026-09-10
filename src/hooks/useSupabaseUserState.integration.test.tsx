@@ -98,6 +98,8 @@ describe("account synchronization lifecycle", () => {
 
   it("keeps offline edits pending and saves them after reconnecting", async () => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    await act(async () => { window.dispatchEvent(new Event("offline")); });
+    expect(status.isOnline).toBe(false);
     const characters = [{ id: "offline-character" }] as UserAppState["characters"];
     await act(async () => edit({ characters }));
     await advance(5000);
@@ -106,6 +108,7 @@ describe("account synchronization lifecycle", () => {
 
     Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
     await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(status.isOnline).toBe(true);
     await advance(900);
     expect(mocks.save).toHaveBeenCalledOnce();
     expect(mocks.save.mock.calls[0][1].characters).toBe(characters);

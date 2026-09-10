@@ -25,6 +25,9 @@ import {
   Compass,
   PanelLeftClose,
   Menu,
+  CloudCheck,
+  CloudUpload,
+  WifiOff,
 } from "lucide-react";
 import {
   RpgSystem,
@@ -257,7 +260,7 @@ export default function App() {
     initiativeState: DEFAULT_INITIATIVE_STATE,
   }), []);
 
-  const { isLoading: isUserStateLoading, loadError: userStateLoadError, retry: retryUserStateLoad } = useSupabaseUserState({
+  const { isLoading: isUserStateLoading, isSynced: isUserStateSynced, isOnline, loadError: userStateLoadError, retry: retryUserStateLoad } = useSupabaseUserState({
     userId: currentUserId,
     state: {
       activeSystem,
@@ -545,6 +548,22 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#14130E] text-[#EFE8D8] font-sans antialiased">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        title={!isOnline ? "As alterações serão enviadas quando a conexão voltar" : isUserStateSynced ? "Seus dados estão salvos no Supabase" : "Há alterações aguardando confirmação do Supabase"}
+        className={`fixed bottom-3 right-3 z-30 flex min-h-9 items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-lg backdrop-blur-md ${
+          !isOnline
+            ? "border-[#C4645A]/60 bg-[#291A17]/95 text-[#F0B2AA]"
+            : isUserStateSynced
+              ? "border-[#4B6B4E]/60 bg-[#18221A]/95 text-[#B7D5B9]"
+              : "border-[#B08635]/60 bg-[#292315]/95 text-[#E8C984]"
+        }`}
+      >
+        {!isOnline ? <WifiOff className="h-4 w-4" aria-hidden="true" /> : isUserStateSynced ? <CloudCheck className="h-4 w-4" aria-hidden="true" /> : <CloudUpload className="h-4 w-4 animate-pulse" aria-hidden="true" />}
+        <span>{!isOnline ? "Sem conexão · alterações pendentes" : isUserStateSynced ? "Salvo na nuvem" : "Salvando na nuvem…"}</span>
+      </div>
       {(storageNotice || mediaStorageError) && (
         <div role="status" className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-[#C4645A] bg-[#1D1B14] p-3 text-xs text-[#EFE8D8] shadow-2xl flex gap-3">
           <AlertCircle className="w-4 h-4 shrink-0 text-[#C4645A]" />
