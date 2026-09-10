@@ -989,6 +989,7 @@ export default function App() {
               <BattlemapCanvas
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
+                onMoveToken={!canEditMaps ? liveCampaign.moveToken : undefined}
                 isGm={canEditMaps && liveCampaign.isReady}
                 currentUser={currentUser}
                 characters={characters}

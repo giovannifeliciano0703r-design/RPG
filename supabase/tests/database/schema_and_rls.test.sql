@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(55);
+select plan(58);
 
 select has_table('public', 'campaign_invites', 'campaign invites exist');
 select has_table('public', 'campaign_state_history', 'campaign state history exists');
@@ -12,6 +12,7 @@ select has_table('private', 'campaign_invite_attempts', 'invite attempts are rat
 select has_function('public', 'create_campaign_invite', array['uuid','integer','integer'], 'invite creation RPC exists');
 select has_function('public', 'join_campaign_by_invite', array['text'], 'invite join RPC exists');
 select has_function('public', 'save_campaign_state_versioned', array['uuid','text','jsonb','bigint'], 'versioned state RPC exists');
+select has_function('public', 'move_owned_campaign_token', array['uuid','text','double precision','double precision','bigint'], 'owned token movement RPC exists');
 select has_function('public', 'delete_my_account', array['text'], 'self-deletion RPC exists');
 select has_function('public', 'save_my_app_state_batch', array['jsonb','uuid'], 'atomic per-account state RPC exists');
 select has_function('public', 'revoke_campaign_invite', array['uuid'], 'invite revocation RPC exists');
@@ -63,6 +64,8 @@ select is(has_function_privilege('anon', 'public.archive_user_app_state_revision
 select is(has_function_privilege('authenticated', 'public.archive_user_app_state_revision()', 'EXECUTE'), false, 'signed-in clients cannot call the account history trigger');
 select is(has_function_privilege('anon', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'anonymous clients cannot call the campaign policy helper');
 select is(has_function_privilege('authenticated', 'public.can_edit_campaign_state(uuid,text)', 'EXECUTE'), false, 'signed-in clients cannot call the campaign policy helper directly');
+select is(has_function_privilege('anon', 'public.move_owned_campaign_token(uuid,text,double precision,double precision,bigint)', 'EXECUTE'), false, 'anonymous clients cannot move campaign tokens');
+select is(has_function_privilege('authenticated', 'public.move_owned_campaign_token(uuid,text,double precision,double precision,bigint)', 'EXECUTE'), true, 'signed-in clients can request owner-checked token movement');
 select is(has_function_privilege('anon', 'public.enforce_media_quota()', 'EXECUTE'), false, 'anonymous clients cannot call the media quota trigger');
 select is(has_function_privilege('authenticated', 'public.enforce_media_quota()', 'EXECUTE'), false, 'signed-in clients cannot call the media quota trigger');
 select is((select count(*)::integer from pg_policies where schemaname = 'public' and ((coalesce(qual, '') ilike '%auth.uid()%' and coalesce(qual, '') not ilike '%select auth.uid()%') or (coalesce(with_check, '') ilike '%auth.uid()%' and coalesce(with_check, '') not ilike '%select auth.uid()%'))), 0, 'RLS caches the authenticated user id once per statement');

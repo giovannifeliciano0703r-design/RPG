@@ -6,6 +6,7 @@ import {
   createRemoteCampaign,
   loadCampaignMessages,
   loadCampaignState,
+  moveOwnedCampaignToken,
   saveCampaignState,
   sanitizeRemoteMessageMetadata,
   sendCampaignMessage,
@@ -55,6 +56,8 @@ export function useLiveCampaign(options: Options) {
   const dataLoadedRef = useRef(false);
   const realtimeReadyRef = useRef({ messages: false, state: false });
   const remoteId = campaign?.remoteId;
+  const activeRemoteIdRef = useRef(remoteId);
+  activeRemoteIdRef.current = remoteId;
   const { canEditMaps, canManageInitiative } = getCampaignPermissions(campaign, user?.id);
 
   useEffect(() => {
@@ -120,6 +123,7 @@ export function useLiveCampaign(options: Options) {
       setMessages((previous) => previous.some((item) => item.id === message.id) ? previous : [...previous, toChatMessage(message, user)]);
     }, (channelStatus) => handleChannelStatus("messages", channelStatus));
     const stateChannel = subscribeToCampaignState(remoteId, (key, payload, revision) => {
+      if (!Number.isSafeInteger(revision) || revision <= (revisionsRef.current[key] ?? 0)) return;
       revisionsRef.current[key] = revision;
       if (key === "battlemap") {
         receivedRemoteMapRef.current = payload as BattleMapData;
@@ -205,5 +209,43 @@ export function useLiveCampaign(options: Options) {
     }
   }, [remoteId, setMessages, user]);
 
-  return { status, error, isReady: hydratedRemoteId === remoteId && Boolean(remoteId), clearError: () => setError(null), sendMessage };
+  const moveToken = useCallback(async (tokenId: string, x: number, y: number) => {
+    if (!remoteId || hydratedRemoteId !== remoteId) return false;
+    try {
+      const revision = await moveOwnedCampaignToken(remoteId, tokenId, x, y, revisionsRef.current.battlemap);
+      if (activeRemoteIdRef.current !== remoteId) return false;
+      revisionsRef.current.battlemap = revision;
+      setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+      setError(null);
+      return true;
+    } catch (cause) {
+      if (cause instanceof CampaignStateConflictError) {
+        try {
+          const latest = await loadCampaignState<BattleMapData>(remoteId, "battlemap");
+          if (activeRemoteIdRef.current !== remoteId) return false;
+          if (!latest) throw cause;
+          revisionsRef.current.battlemap = latest.revision;
+          const revision = await moveOwnedCampaignToken(remoteId, tokenId, x, y, latest.revision);
+          if (activeRemoteIdRef.current !== remoteId) return false;
+          revisionsRef.current.battlemap = revision;
+          const rebasedMap = {
+            ...latest.payload,
+            tokens: latest.payload.tokens.map((token) => token.id === tokenId ? { ...token, x, y } : token),
+          };
+          receivedRemoteMapRef.current = rebasedMap;
+          setBattlemap(rebasedMap);
+          setStatus(realtimeReadyRef.current.messages && realtimeReadyRef.current.state ? "online" : "connecting");
+          setError(null);
+          return true;
+        } catch (retryCause) {
+          cause = retryCause;
+        }
+      }
+      setStatus("error");
+      setError(cause instanceof Error ? cause.message : "Não foi possível mover o token online.");
+      return false;
+    }
+  }, [hydratedRemoteId, remoteId, setBattlemap]);
+
+  return { status, error, isReady: hydratedRemoteId === remoteId && Boolean(remoteId), clearError: () => setError(null), sendMessage, moveToken };
 }

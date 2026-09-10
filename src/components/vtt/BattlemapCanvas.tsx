@@ -41,6 +41,7 @@ import { DEFAULT_MAP_PRESETS } from "../../data/defaultMaps";
 interface BattlemapCanvasProps {
   mapData: BattleMapData;
   onUpdateMap: (updated: BattleMapData) => void;
+  onMoveToken?: (tokenId: string, x: number, y: number) => Promise<boolean>;
   isGm: boolean;
   currentUser: UserProfile;
   characters: CharacterSheet[];
@@ -53,6 +54,7 @@ interface BattlemapCanvasProps {
 export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   mapData,
   onUpdateMap,
+  onMoveToken,
   isGm,
   currentUser,
   characters,
@@ -105,6 +107,13 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         canControl: false,
         reason: "Monstro / Inimigo: Apenas o Mestre da Mesa (GM) pode movimentar e alterar este token.",
       };
+    }
+
+    // Online movement is authorized again by the database and requires an explicit owner.
+    if (onMoveToken) {
+      return token.ownerId === currentUser.id
+        ? { canControl: true }
+        : { canControl: false, reason: "Apenas o proprietário definido pelo Mestre pode mover este token online." };
     }
 
     // 3. Player Characters: ONLY creator / owner can move and alter
@@ -194,6 +203,12 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
   const handleMouseUp = () => {
     setIsPanning(false);
     if (draggedTokenId) {
+      const movedToken = mapData.tokens.find((token) => token.id === draggedTokenId);
+      if (movedToken && onMoveToken) {
+        void onMoveToken(movedToken.id, movedToken.x, movedToken.y).then((saved) => {
+          if (!saved) setPermissionNotice("Não foi possível salvar o movimento online. Tente novamente.");
+        });
+      }
       setDraggedTokenId(null);
     }
   };
@@ -618,6 +633,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
         <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-30 bg-[#15140F]/95 border border-[#7A2E27] rounded-2xl p-3 sm:p-4 shadow-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-bottom-2">
           {(() => {
             const perm = canControlToken(selectedToken);
+            const canEditToken = isGm || isUserAdmin(currentUser);
 
             return (
               <>
@@ -653,7 +669,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
                 </div>
 
                 {/* HP Controls or Read-only badge */}
-                {perm.canControl ? (
+                {canEditToken ? (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => {
@@ -691,14 +707,14 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
                     <span>
                       {selectedToken.isEnemy
                         ? "Apenas o Mestre pode alterar este monstro"
-                        : "Apenas o criador pode alterar"}
+                        : perm.canControl ? "Você pode mover este token; atributos são alterados pelo Mestre" : "Apenas o Mestre pode alterar"}
                     </span>
                   </div>
                 )}
 
                 {/* Delete & Lock controls */}
                 <div className="flex items-center gap-2">
-                  {perm.canControl && (
+                  {canEditToken && (
                     <button
                       onClick={() => handleDeleteToken(selectedToken)}
                       className="p-1.5 text-[#C4645A] hover:bg-[#7A2E27]/20 rounded-lg transition-colors cursor-pointer"
@@ -721,7 +737,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
       )}
 
       {/* Floating Add Token Quick Button (for GM or Players) */}
-      <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
+      {(isGm || !onMoveToken) && <div className="absolute bottom-4 left-4 z-20 flex items-center gap-2">
         <button
           onClick={() =>
             handleAddToken(
@@ -748,7 +764,7 @@ export const BattlemapCanvas: React.FC<BattlemapCanvasProps> = ({
             <span>+ Monstro (GM)</span>
           </button>
         )}
-      </div>
+      </div>}
 
       {/* Floating Expand Chat Button (when chat is collapsed) */}
       {!isChatOpen && onToggleChat && (

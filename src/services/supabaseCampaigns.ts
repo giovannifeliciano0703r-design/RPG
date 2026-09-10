@@ -239,6 +239,26 @@ export async function saveCampaignState(campaignId: string, stateKey: string, pa
   return data as number;
 }
 
+export async function moveOwnedCampaignToken(
+  campaignId: string,
+  tokenId: string,
+  x: number,
+  y: number,
+  expectedRevision: number,
+) {
+  if (!supabase) throw new Error("Supabase não está configurado.");
+  const { data, error } = await supabase.rpc("move_owned_campaign_token", {
+    target_campaign: campaignId,
+    target_token_id: tokenId,
+    target_x: x,
+    target_y: y,
+    expected_revision: expectedRevision,
+  });
+  if (error?.code === "40001") throw new CampaignStateConflictError();
+  if (error) throw error;
+  return Number(data);
+}
+
 export type VersionedCampaignState<T> = { payload: T; revision: number };
 
 export async function loadCampaignState<T>(campaignId: string, stateKey: string): Promise<VersionedCampaignState<T> | null> {
