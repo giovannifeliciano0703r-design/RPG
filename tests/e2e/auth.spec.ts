@@ -7,7 +7,7 @@ test.describe("acesso por conta", () => {
     await expect(page.getByRole("heading", { name: "Entrar no Mestre Arcano" })).toBeVisible();
     await expect(page.getByLabel("E-mail do Aventureiro")).toBeVisible();
     await expect(page.getByLabel("Senha", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Adentrar o Santuário" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
     await expect(page.getByText(/acesso rápido|modo demonstração|continuar sem conta/i)).toHaveCount(0);
   });
 

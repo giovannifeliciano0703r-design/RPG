@@ -344,7 +344,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, initialError 
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="p-1.5 text-[#A79C82] hover:text-[#EFE8D8] absolute right-2.5 top-1/2 -translate-y-1/2"
+                      className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-[#A79C82] hover:bg-white/5 hover:text-[#EFE8D8]"
                       aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                       title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
@@ -358,13 +358,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, initialError 
                     type="button"
                     onClick={handlePasswordRecovery}
                     disabled={isLoading}
-                    className="text-[11px] font-mono text-[#DFB56C] hover:text-[#EFE8D8] underline underline-offset-4 disabled:opacity-50"
+                    className="inline-flex min-h-11 items-center px-2 text-xs font-mono text-[#DFB56C] hover:text-[#EFE8D8] underline underline-offset-4 disabled:opacity-50"
                   >
                     Esqueci minha senha
                   </button>
                 </div>
 
-                <p className="text-[#8A8270] text-[10px] font-mono pt-1">
+                <p className="text-[#A79C82] text-xs font-mono pt-1 leading-relaxed">
                   O acesso exige uma conta confirmada e autenticada pelo Supabase.
                 </p>
 
@@ -377,7 +377,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, initialError 
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Adentrar o Santuário</span>
+                      <span>Entrar</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -453,7 +453,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, initialError 
                       onClick={() => setShowPassword((value) => !value)}
                       aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                       title={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                      className="p-1.5 text-[#A79C82] hover:text-[#EFE8D8] absolute right-2.5 top-1/2 -translate-y-1/2"
+                      className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-[#A79C82] hover:bg-white/5 hover:text-[#EFE8D8]"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
