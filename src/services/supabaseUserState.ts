@@ -46,7 +46,7 @@ const PROPERTY_BY_COLUMN = new Map(STATE_COLUMNS.map(([property, column]) => [co
 export type LoadedUserAppState = { state: Partial<UserAppState>; revisions: Record<string, number> };
 
 export class UserAppStateConflictError extends Error {
-  constructor() { super("Seus dados foram alterados em outro aparelho. A versão mais recente foi carregada."); }
+  constructor() { super("Seus dados foram alterados em outro aparelho. Suas mudanças locais serão reaplicadas sobre a versão mais recente."); }
 }
 
 export function mergeStateRevisions(previous: Record<string, number>, updated: Record<string, unknown>): Record<string, number> {

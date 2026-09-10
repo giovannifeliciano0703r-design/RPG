@@ -138,6 +138,34 @@ describe("account synchronization lifecycle", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
+  it("rebases pending local edits onto the latest server state after a conflict", async () => {
+    const localCharacters = [{ id: "local-character" }] as UserAppState["characters"];
+    const serverMonsters = [{ id: "server-monster" }] as UserAppState["monsters"];
+    mocks.save.mockRejectedValueOnce(new UserAppStateConflictError());
+    mocks.load.mockResolvedValueOnce({
+      state: { ...initial, characters: [], monsters: serverMonsters },
+      revisions: { characters: 5, monsters: 8 },
+    });
+
+    await act(async () => edit({ characters: localCharacters }));
+    await advance(900);
+
+    expect(snapshot.characters).toBe(localCharacters);
+    expect(snapshot.monsters).toBe(serverMonsters);
+    expect(status.isSynced).toBe(false);
+
+    let submittedCharacterRevision: number | undefined;
+    mocks.save.mockImplementationOnce((_userId, _state, revisions) => {
+      submittedCharacterRevision = revisions.characters;
+      return Promise.resolve({ characters: 6, monsters: 8 });
+    });
+    await advance(900);
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+    expect(mocks.save.mock.calls[1][1].characters).toBe(localCharacters);
+    expect(submittedCharacterRevision).toBe(5);
+    expect(status.isSynced).toBe(true);
+  });
+
   it("discards a conflict reload completed after switching accounts", async () => {
     let completeRecovery!: (value: { state: UserAppState; revisions: Record<string, number> }) => void;
     mocks.load.mockImplementationOnce(() => new Promise((resolve) => { completeRecovery = resolve; }));

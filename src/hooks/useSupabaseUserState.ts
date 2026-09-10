@@ -143,6 +143,7 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
         return;
       }
       const snapshot = stateRef.current;
+      const baselineBeforeSave = lastSyncedStateRef.current;
       const changedProperties = selectChangedUserStateKeys(lastSyncedStateRef.current, snapshot);
       if (changedProperties.length === 0) {
         setIsSynced(true);
@@ -175,9 +176,15 @@ export function useSupabaseUserState({ userId, state, applyState, createFreshSta
               () => loadUserAppState(userId),
               isCurrent,
               (latest) => {
+                const pendingProperties = selectChangedUserStateKeys(baselineBeforeSave, stateRef.current);
+                const rebasedState = { ...stateRef.current, ...latest.state } as UserAppState;
+                for (const property of pendingProperties) {
+                  (rebasedState as unknown as Record<string, unknown>)[property] = stateRef.current[property];
+                }
                 revisionsRef.current = latest.revisions;
                 lastSyncedStateRef.current = latest.state;
-                applyStateRef.current(latest.state);
+                consecutiveFailuresRef.current = 0;
+                applyStateRef.current(rebasedState);
               },
               () => onErrorRef.current("Falha ao recuperar a versão online. Suas alterações continuam pendentes."),
             );
