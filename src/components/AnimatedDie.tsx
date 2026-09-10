@@ -192,7 +192,10 @@ export const AnimatedDie: React.FC<AnimatedDieProps> = ({
   };
 
   return (
-    <div
+    <button
+      type="button"
+      disabled={!onRerollSingle}
+      aria-label={onRerollSingle ? `Rolar novamente ${diceType}, resultado atual ${displayValue}` : `${diceType}, resultado ${displayValue}`}
       onClick={onRerollSingle}
       title={onRerollSingle ? "Clique para rolar novamente este dado" : undefined}
       style={{
@@ -261,6 +264,6 @@ export const AnimatedDie: React.FC<AnimatedDieProps> = ({
           isRolling ? "scale-75 opacity-30 translate-y-3" : "scale-100 opacity-70"
         }`}
       />
-    </div>
+    </button>
   );
 };

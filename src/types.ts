@@ -58,6 +58,8 @@ export interface UserProfile {
   favoriteSystem: RpgSystem;
   createdAt: number;
   isAdmin?: boolean;
+  termsAcceptedAt?: string;
+  privacyVersion?: string;
 }
 
 export const isUserAdmin = (user: UserProfile | null | undefined): boolean => {

@@ -238,13 +238,14 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
 
             <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
               {filteredNpcs.map((npc) => (
-                <div
+                <button
+                  type="button"
                   key={npc.id}
                   onClick={() => {
                     setSelectedNpc(npc);
                     setIsEditingNpc(false);
                   }}
-                  className={`p-2.5 rounded-xl border transition-colors cursor-pointer ${
+                  className={`w-full p-2.5 text-left rounded-xl border transition-colors cursor-pointer ${
                     selectedNpc?.id === npc.id
                       ? "bg-[#DFB56C]/15 border-[#DFB56C] text-[#EFE8D8]"
                       : "bg-[#1C1A14] border-[#38352A] text-[#A79C82] hover:border-[#DFB56C]/40 hover:text-[#EFE8D8]"
@@ -265,7 +266,7 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-[#A79C82] truncate">{npc.titleOrRole}</p>
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -287,8 +288,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-mono text-[#A79C82] block mb-1">NOME DO NPC</label>
+                      <label htmlFor="npc-name" className="text-[10px] font-mono text-[#A79C82] block mb-1">NOME DO NPC</label>
                       <input
+                        id="npc-name"
                         type="text"
                         value={selectedNpc.name}
                         onChange={(e) => setSelectedNpc({ ...selectedNpc, name: e.target.value })}
@@ -296,8 +298,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-mono text-[#A79C82] block mb-1">PAPEL / CARGO</label>
+                      <label htmlFor="npc-role" className="text-[10px] font-mono text-[#A79C82] block mb-1">PAPEL / CARGO</label>
                       <input
+                        id="npc-role"
                         type="text"
                         value={selectedNpc.titleOrRole}
                         onChange={(e) => setSelectedNpc({ ...selectedNpc, titleOrRole: e.target.value })}
@@ -308,8 +311,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-mono text-[#A79C82] block mb-1">PASTA DE DESTINO</label>
+                      <label htmlFor="npc-folder" className="text-[10px] font-mono text-[#A79C82] block mb-1">PASTA DE DESTINO</label>
                       <select
+                        id="npc-folder"
                         value={selectedNpc.folderId || ""}
                         onChange={(e) => setSelectedNpc({ ...selectedNpc, folderId: e.target.value || undefined })}
                         className="w-full bg-[#1C1A14] border border-[#38352A] rounded-xl px-3 py-1.5 text-xs text-[#EFE8D8] outline-none"
@@ -324,8 +328,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-mono text-[#A79C82] block mb-1">POSTURA / ATITUDE</label>
+                      <label htmlFor="npc-attitude" className="text-[10px] font-mono text-[#A79C82] block mb-1">POSTURA / ATITUDE</label>
                       <select
+                        id="npc-attitude"
                         value={selectedNpc.attitude}
                         onChange={(e) => setSelectedNpc({ ...selectedNpc, attitude: e.target.value as any })}
                         className="w-full bg-[#1C1A14] border border-[#38352A] rounded-xl px-3 py-1.5 text-xs text-[#EFE8D8] outline-none"
@@ -339,8 +344,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono text-[#A79C82] block mb-1">PERSONALIDADE & MOTIVAÇÃO</label>
+                    <label htmlFor="npc-personality" className="text-[10px] font-mono text-[#A79C82] block mb-1">PERSONALIDADE & MOTIVAÇÃO</label>
                     <textarea
+                      id="npc-personality"
                       rows={2}
                       value={selectedNpc.personality}
                       onChange={(e) => setSelectedNpc({ ...selectedNpc, personality: e.target.value })}
@@ -349,8 +355,9 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-mono text-[#A79C82] block mb-1">APARÊNCIA & PECULIARIDADES</label>
+                    <label htmlFor="npc-appearance" className="text-[10px] font-mono text-[#A79C82] block mb-1">APARÊNCIA & PECULIARIDADES</label>
                     <textarea
+                      id="npc-appearance"
                       rows={2}
                       value={selectedNpc.appearance}
                       onChange={(e) => setSelectedNpc({ ...selectedNpc, appearance: e.target.value })}
@@ -359,10 +366,11 @@ export const NpcFoldersModal: React.FC<NpcFoldersModalProps> = ({
                   </div>
 
                   <div className="p-3 bg-[#7A2E27]/20 border border-[#7A2E27] rounded-xl space-y-1">
-                    <label className="text-[10px] font-mono text-[#DFB56C] flex items-center gap-1 font-bold">
+                    <label htmlFor="npc-secrets" className="text-[10px] font-mono text-[#DFB56C] flex items-center gap-1 font-bold">
                       <Lock className="w-3.5 h-3.5" /> SEGREDOS & NOTAS RESTRITAS AO MESTRE (GM)
                     </label>
                     <textarea
+                      id="npc-secrets"
                       rows={3}
                       value={selectedNpc.secretsGmOnly}
                       onChange={(e) => setSelectedNpc({ ...selectedNpc, secretsGmOnly: e.target.value })}

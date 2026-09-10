@@ -17,3 +17,16 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
     })
   : null;
 
+export async function verifyAccountPassword(email: string, password: string) {
+  if (!url || !publishableKey) return false;
+  const verifier = createClient(url, publishableKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+  });
+  const { data, error } = await verifier.auth.signInWithPassword({ email, password });
+  if (data.session) await verifier.auth.signOut({ scope: "local" });
+  return !error && Boolean(data.user);
+}

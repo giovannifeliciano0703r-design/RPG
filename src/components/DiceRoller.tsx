@@ -622,7 +622,8 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
               </div>
               <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
                 {history.map((h) => (
-                  <div
+                  <button
+                    type="button"
                     key={h.id}
                     onClick={() => {
                       setSelectedDice(h.diceType);
@@ -632,7 +633,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
                       executeRoll(h.diceType, h.count, h.modifier, h.mode);
                     }}
                     title="Clique para repetir esta rolagem"
-                    className="flex items-center justify-between text-xs font-mono bg-[#1C1A14] hover:bg-[#25231B] px-2.5 py-1.5 rounded-lg border border-[#2D2A21] transition-colors cursor-pointer"
+                    className="flex w-full items-center justify-between text-left text-xs font-mono bg-[#1C1A14] hover:bg-[#25231B] px-2.5 py-1.5 rounded-lg border border-[#2D2A21] transition-colors cursor-pointer"
                   >
                     <span className="text-[#8A8270]">
                       {h.count > 1 ? `${h.count}${h.diceType}` : h.diceType}
@@ -645,7 +646,7 @@ export const DiceRoller: React.FC<DiceRollerProps> = ({ isOpen, onClose, onSendT
                     >
                       {h.total}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

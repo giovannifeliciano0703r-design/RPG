@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Dices,
   AlertCircle,
@@ -25,6 +25,9 @@ import {
   Compass,
   PanelLeftClose,
   Menu,
+  CloudCheck,
+  CloudUpload,
+  WifiOff,
 } from "lucide-react";
 import {
   RpgSystem,
@@ -47,10 +50,12 @@ import {
   DEFAULT_MACROS,
   DEFAULT_NPC_FOLDERS,
   DEFAULT_NPCS,
+  DEFAULT_BATTLEMAP,
+  DEFAULT_INITIAL_CAMPAIGN,
+  DEFAULT_INITIATIVE_STATE,
 } from "./data/defaultAppData";
 
 import { executeMacro } from "./utils/macroEngine";
-import { SystemSelectorModal, RPG_SYSTEMS_META } from "./components/SystemSelectorModal";
 import { HubView } from "./components/hub/HubView";
 import { normalizeRpgSystem } from "./domain/rpgSystems";
 import { useAppPersistence } from "./hooks/useAppPersistence";
@@ -58,10 +63,15 @@ import { useMediaAssets } from "./hooks/useMediaAssets";
 import { ConfirmDialog } from "./components/ui/Dialog";
 import { STORAGE_KEYS } from "./constants/storageKeys";
 import { useLiveCampaign } from "./hooks/useLiveCampaign";
-import { uploadCampaignMedia } from "./services/supabaseMedia";
+import { deleteUserMediaAsset, loadUserMediaAssets, uploadCampaignMedia } from "./services/supabaseMedia";
 import { useCampaignWorkspace } from "./hooks/useCampaignWorkspace";
 import { useAppAuth } from "./hooks/useAppAuth";
+import { getCampaignPermissions } from "./domain/campaignPermissions";
+import { useSupabaseUserState } from "./hooks/useSupabaseUserState";
+import type { UserAppState } from "./services/supabaseUserState";
 import { supabase } from "./lib/supabase";
+import { trashCharacter } from "./services/supabaseTrash";
+import { CURRENT_PRIVACY_VERSION } from "./constants/compliance";
 
 const CharacterSheetModal = React.lazy(() => import("./components/character/CharacterSheetModal").then((module) => ({ default: module.CharacterSheetModal })));
 const BestiaryModal = React.lazy(() => import("./components/bestiary/BestiaryModal").then((module) => ({ default: module.BestiaryModal })));
@@ -75,6 +85,8 @@ const UserProfileModal = React.lazy(() => import("./components/UserProfileModal"
 const CampaignDualChat = React.lazy(() => import("./components/campaign/CampaignDualChat").then((module) => ({ default: module.CampaignDualChat })));
 const BattlemapCanvas = React.lazy(() => import("./components/vtt/BattlemapCanvas").then((module) => ({ default: module.BattlemapCanvas })));
 const InitiativeTrackerBar = React.lazy(() => import("./components/vtt/InitiativeTrackerBar").then((module) => ({ default: module.InitiativeTrackerBar })));
+const SystemSelectorModal = React.lazy(() => import("./components/SystemSelectorModal").then((module) => ({ default: module.SystemSelectorModal })));
+const CharacterTrashModal = React.lazy(() => import("./components/character/CharacterTrashModal").then((module) => ({ default: module.CharacterTrashModal })));
 
 const SYSTEM_SHORT_LABELS: Record<RpgSystem, { short: string; subtitle: string; icon: string }> = {
   "Dungeons & Dragons (D&D)": { short: "D&D 5e", subtitle: "D20 • Fantasia Medieval", icon: "⚔️" },
@@ -185,6 +197,7 @@ export default function App() {
   const [isDiceOpen, setIsDiceOpen] = useState(false);
   const [isMobileSystemOpen, setIsMobileSystemOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCharacterTrashOpen, setIsCharacterTrashOpen] = useState(false);
   const [storageNotice, setStorageNotice] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     title: string;
@@ -192,18 +205,95 @@ export default function App() {
     confirmLabel: string;
     onConfirm: () => void;
   } | null>(null);
+  const [isAcceptingTerms, setIsAcceptingTerms] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   const handleStorageError = useCallback((key: string) => {
     setStorageNotice(`Não foi possível salvar “${key}”. Libere espaço no navegador ou exporte um backup.`);
   }, []);
 
-  const { currentUser, setCurrentUser, isAuthChecking, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
+  const { currentUser, setCurrentUser, isAuthChecking, authCheckError, isPasswordRecovery, clearPasswordRecovery, login: authenticateUser, logout: clearAuthSession } = useAppAuth({
     onPreferredSystem: setActiveSystem,
   });
+  const hasCurrentConsent = Boolean(
+    currentUser?.termsAcceptedAt && currentUser.privacyVersion === CURRENT_PRIVACY_VERSION,
+  );
+  const currentUserId = hasCurrentConsent ? currentUser?.id : undefined;
+
+  useEffect(() => {
+    if (currentUser && isPasswordRecovery) setIsProfileOpen(true);
+  }, [currentUser, isPasswordRecovery]);
+
+  const applyUserAppState = useCallback((remote: Partial<UserAppState>) => {
+    if (remote.activeSystem) setActiveSystem(normalizeRpgSystem(remote.activeSystem));
+    if (remote.characters) {
+      const normalized = remote.characters.map((character) => ({ ...character, system: normalizeRpgSystem(character.system) }));
+      setCharacters(normalized);
+      setActiveCharacter(normalized[0] || null);
+      setEditingCharacter(null);
+      setIsCharacterSheetOpen(false);
+    }
+    if (remote.monsters) setMonsters(remote.monsters);
+    if (remote.macros) setMacros(remote.macros);
+    if (remote.npcFolders) setNpcFolders(remote.npcFolders);
+    if (remote.npcs) setNpcs(remote.npcs);
+    if (remote.campaigns) {
+      const normalized = remote.campaigns.map((campaign) => ({ ...campaign, system: normalizeRpgSystem(campaign.system) }));
+      setCampaigns(normalized);
+      setActiveCampaign(normalized[0] || null);
+    }
+    if (remote.campaignMessages) setCampaignMessages(remote.campaignMessages);
+    if (remote.battleMapData) setBattleMapData(remote.battleMapData);
+    if (remote.initiativeState) setInitiativeState(remote.initiativeState);
+  }, [setActiveCampaign, setCampaignMessages, setCampaigns, setBattleMapData, setInitiativeState]);
+
+  const createFreshUserAppState = useCallback((): UserAppState => ({
+    activeSystem: "Outro / não especificar",
+    characters: [],
+    monsters: DEFAULT_MONSTERS,
+    macros: DEFAULT_MACROS,
+    npcFolders: DEFAULT_NPC_FOLDERS,
+    npcs: DEFAULT_NPCS,
+    campaigns: [DEFAULT_INITIAL_CAMPAIGN],
+    campaignMessages: [],
+    battleMapData: DEFAULT_BATTLEMAP,
+    initiativeState: DEFAULT_INITIATIVE_STATE,
+  }), []);
+
+  const { isLoading: isUserStateLoading, isSynced: isUserStateSynced, isOnline, loadError: userStateLoadError, retry: retryUserStateLoad } = useSupabaseUserState({
+    userId: currentUserId,
+    state: {
+      activeSystem,
+      characters,
+      monsters,
+      macros,
+      npcFolders,
+      npcs,
+      campaigns,
+      campaignMessages,
+      battleMapData,
+      initiativeState,
+    },
+    applyState: applyUserAppState,
+    createFreshState: createFreshUserAppState,
+    onError: (message) => setStorageNotice(`Sincronização online: ${message}`),
+  });
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+    void loadUserMediaAssets()
+      .then((assets) => { if (!cancelled) saveMediaAssets(assets); })
+      .catch((cause) => {
+        if (!cancelled) setStorageNotice(`Biblioteca online: ${cause instanceof Error ? cause.message : "falha ao carregar imagens."}`);
+      });
+    return () => { cancelled = true; };
+  }, [currentUserId, saveMediaAssets]);
 
   const liveCampaign = useLiveCampaign({
     campaign: activeCampaign,
-    user: currentUser,
+    // Never start campaign side effects with state cached by another account.
+    user: !hasCurrentConsent || isUserStateLoading ? null : currentUser,
     battlemap: battleMapData,
     initiative: initiativeState,
     setCampaign: handleSynchronizedCampaign,
@@ -245,19 +335,39 @@ export default function App() {
     clearAuthSession();
   };
 
-  const handleUpdateProfile = (updated: UserProfile) => {
+  const handleAcceptCurrentTerms = async () => {
+    setConsentError(null);
+    setIsAcceptingTerms(true);
+    try {
+      if (!supabase) throw new Error("Supabase não está configurado.");
+      const { error } = await supabase.rpc("accept_current_terms", { target_version: CURRENT_PRIVACY_VERSION });
+      if (error) throw error;
+      setCurrentUser((user) => user ? {
+        ...user,
+        termsAcceptedAt: new Date().toISOString(),
+        privacyVersion: CURRENT_PRIVACY_VERSION,
+      } : null);
+    } catch (error) {
+      setConsentError(error instanceof Error ? error.message : "Não foi possível registrar seu aceite.");
+    } finally {
+      setIsAcceptingTerms(false);
+    }
+  };
+
+  const handleUpdateProfile = async (updated: UserProfile) => {
     const safeUpdated = { ...updated, role: currentUser!.role, isAdmin: isUserAdmin(currentUser) };
-    setCurrentUser(safeUpdated);
-    if (supabase) {
-      void supabase.auth.updateUser({
+    if (!supabase) throw new Error("Supabase não está configurado.");
+    const { error: authError } = await supabase.auth.updateUser({
         data: {
           display_name: safeUpdated.name,
           avatar: safeUpdated.avatar,
           favorite_system: safeUpdated.favoriteSystem,
         },
       });
-      void supabase.from("profiles").update({ display_name: safeUpdated.name }).eq("id", safeUpdated.id);
-    }
+    if (authError) throw authError;
+    const { error: profileError } = await supabase.from("profiles").update({ display_name: safeUpdated.name, avatar_url: safeUpdated.avatar }).eq("id", safeUpdated.id);
+    if (profileError) throw profileError;
+    setCurrentUser(safeUpdated);
     if (safeUpdated.favoriteSystem && safeUpdated.favoriteSystem !== activeSystem) {
       setActiveSystem(safeUpdated.favoriteSystem);
     }
@@ -370,25 +480,90 @@ export default function App() {
     }
   };
 
-  if (isAuthChecking) {
+  if (isAuthChecking || (currentUser && isUserStateLoading)) {
     return (
-      <div className="min-h-screen bg-[#12110C] text-[#DFB56C] flex items-center justify-center font-serif">
-        Validando sessão segura…
-      </div>
+      <main className="min-h-screen bg-[#12110C] text-[#EFE8D8] flex items-center justify-center p-6 font-serif">
+        {userStateLoadError && !isAuthChecking ? (
+          <section role="alert" className="w-full max-w-md rounded-2xl border border-[#C4645A]/50 bg-[#1D1B14] p-6 text-center shadow-2xl">
+            <AlertCircle className="mx-auto h-8 w-8 text-[#C4645A]" aria-hidden="true" />
+            <h1 className="mt-4 text-xl font-bold">Não foi possível carregar sua conta</h1>
+            <p className="mt-2 text-sm text-[#BEB5A2]">Seus dados locais não serão exibidos para evitar misturar informações entre contas.</p>
+            <p className="mt-3 text-xs text-[#CFC5B1]">{userStateLoadError}</p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button type="button" onClick={retryUserStateLoad} className="rounded-xl bg-[#DFB56C] px-5 py-3 font-bold text-[#17140E] hover:bg-[#ECC77F]">
+                Tentar novamente
+              </button>
+              <button type="button" onClick={handleLogout} className="rounded-xl border border-[#4A4437] px-5 py-3 font-bold text-[#EFE8D8] hover:bg-white/5">
+                Sair da conta
+              </button>
+            </div>
+          </section>
+        ) : (
+          <p role="status" aria-live="polite" className="text-[#DFB56C]">
+            {isAuthChecking ? "Validando sessão segura…" : "Carregando seus dados online…"}
+          </p>
+        )}
+      </main>
+    );
+  }
+
+  if (currentUser && !hasCurrentConsent) {
+    return (
+      <main className="min-h-screen bg-[#12110C] text-[#EFE8D8] flex items-center justify-center p-6">
+        <section className="w-full max-w-lg rounded-2xl border border-[#38352A] bg-[#1D1B14] p-6 text-center shadow-2xl" aria-labelledby="consent-title">
+          <ScrollText className="mx-auto h-9 w-9 text-[#DFB56C]" aria-hidden="true" />
+          <h1 id="consent-title" className="mt-4 font-serif text-2xl font-bold">Termos e privacidade atualizados</h1>
+          <p className="mt-3 text-sm text-[#BEB5A2]">Leia os documentos vigentes antes de acessar e sincronizar os dados da sua conta.</p>
+          <p className="mt-4 text-sm">
+            <a href="/terms.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Termos de Uso</a>
+            <span aria-hidden="true"> · </span>
+            <a href="/privacy.html" target="_blank" rel="noreferrer" className="text-[#DFB56C] underline">Política de Privacidade</a>
+          </p>
+          {consentError ? <p role="alert" className="mt-4 text-sm text-[#C4645A]">{consentError}</p> : null}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button type="button" disabled={isAcceptingTerms} onClick={handleAcceptCurrentTerms} className="rounded-xl bg-[#DFB56C] px-5 py-3 font-bold text-[#17140E] disabled:opacity-50">
+              {isAcceptingTerms ? "Registrando aceite…" : "Li e aceito os documentos"}
+            </button>
+            <button type="button" disabled={isAcceptingTerms} onClick={handleLogout} className="rounded-xl border border-[#4A4437] px-5 py-3 font-bold disabled:opacity-50">Sair da conta</button>
+          </div>
+        </section>
+      </main>
     );
   }
 
   if (!currentUser) {
-    return <LoginScreen onLogin={handleLogin} />;
+    return <LoginScreen onLogin={handleLogin} initialError={authCheckError} />;
   }
 
   const isCurrentUserAdmin = isUserAdmin(currentUser);
 
-  const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
-  const currentSystemMeta = RPG_SYSTEMS_META.find((s) => s.id === activeSystem) || RPG_SYSTEMS_META[0];
+  const { isOwner: isCurrentGm, canManageInitiative, canEditMaps, canEditSharedMacros } = getCampaignPermissions(activeCampaign, currentUser.id);
+  const systemSummary = SYSTEM_SHORT_LABELS[activeSystem];
+  const currentSystemMeta = {
+    icon: systemSummary.icon,
+    abbrev: systemSummary.short,
+    shortName: activeSystem,
+    badgeBg: "bg-[#DFB56C]/10 text-[#DFB56C] border-[#DFB56C]/30",
+  };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#14130E] text-[#EFE8D8] font-sans antialiased">
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        title={!isOnline ? "As alterações serão enviadas quando a conexão voltar" : isUserStateSynced ? "Seus dados estão salvos no Supabase" : "Há alterações aguardando confirmação do Supabase"}
+        className={`fixed bottom-3 right-3 z-30 flex min-h-9 items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium shadow-lg backdrop-blur-md ${
+          !isOnline
+            ? "border-[#C4645A]/60 bg-[#291A17]/95 text-[#F0B2AA]"
+            : isUserStateSynced
+              ? "border-[#4B6B4E]/60 bg-[#18221A]/95 text-[#B7D5B9]"
+              : "border-[#B08635]/60 bg-[#292315]/95 text-[#E8C984]"
+        }`}
+      >
+        {!isOnline ? <WifiOff className="h-4 w-4" aria-hidden="true" /> : isUserStateSynced ? <CloudCheck className="h-4 w-4" aria-hidden="true" /> : <CloudUpload className="h-4 w-4 animate-pulse" aria-hidden="true" />}
+        <span>{!isOnline ? "Sem conexão · alterações pendentes" : isUserStateSynced ? "Salvo na nuvem" : "Salvando na nuvem…"}</span>
+      </div>
       {(storageNotice || mediaStorageError) && (
         <div role="status" className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-[#C4645A] bg-[#1D1B14] p-3 text-xs text-[#EFE8D8] shadow-2xl flex gap-3">
           <AlertCircle className="w-4 h-4 shrink-0 text-[#C4645A]" />
@@ -409,7 +584,9 @@ export default function App() {
       )}
       {/* Mobile backdrop for sidebar */}
       {isSidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Fechar menu lateral"
           className="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 md:hidden animate-in fade-in"
           onClick={() => setIsSidebarOpen(false)}
         />
@@ -557,7 +734,7 @@ export default function App() {
               >
                 <div className="flex items-center gap-2">
                   <Crown className="w-4 h-4 text-[#DFB56C] group-hover:scale-110 transition-transform" />
-                  <span>Campanha local</span>
+                  <span>Campanhas online</span>
                 </div>
                 <span className="text-[9px] font-mono text-[#DFB56C]">{campaigns.length}</span>
               </button>
@@ -601,6 +778,7 @@ export default function App() {
         <div className="p-3 border-t border-[#38352A] bg-[#15140F]/80 flex items-center gap-2">
           <button
             onClick={() => setIsProfileOpen(true)}
+            aria-label={`Abrir perfil de ${currentUser.name}`}
             className="flex-1 flex items-center justify-between p-2 rounded-xl bg-[#1D1B14] hover:bg-[#25231B] border border-[#38352A] hover:border-[#DFB56C]/60 transition-all text-left group cursor-pointer min-w-0"
             title="Abrir Perfil"
           >
@@ -656,20 +834,6 @@ export default function App() {
                 <span>HUB</span>
               </button>
 
-              <button
-                onClick={() => setIsMobileSystemOpen(true)}
-                title="Clique para escolher outro sistema de RPG"
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-[#1F1D16] hover:bg-[#2A271E] border border-[#38352A] hover:border-[#DFB56C]/60 text-[#DFB56C] text-xs font-mono rounded-lg active:scale-95 transition-all cursor-pointer shadow-xs group"
-              >
-                <span>{currentSystemMeta.icon}</span>
-                <span className={`font-bold px-1.5 py-0.2 rounded text-[10px] ${currentSystemMeta.badgeBg}`}>
-                  {currentSystemMeta.abbrev}
-                </span>
-                <span className="hidden sm:inline font-medium text-[#D6CEBE] text-xs truncate max-w-[150px]">
-                  {currentSystemMeta.shortName}
-                </span>
-                <ChevronDown className="w-3 h-3 text-[#8A8270] group-hover:text-[#DFB56C] transition-colors" />
-              </button>
             </div>
 
             {/* Right: Quick Action Controls */}
@@ -702,12 +866,9 @@ export default function App() {
         {/* View Mode 0: HUB & SHORTCUTS DASHBOARD */}
         {activeView === "hub" && (
           <HubView
-            currentUser={currentUser}
             activeCharacter={activeCharacter}
             characters={characters}
-            activeSystem={activeSystem}
             onNavigateView={setActiveView}
-            onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
             onOpenCharacterSheet={(char) => {
               if (char) {
                 setEditingCharacter(char);
@@ -728,18 +889,38 @@ export default function App() {
               }
               setIsCharacterSheetOpen(true);
             }}
+            onDeleteCharacter={(character) => {
+              setPendingConfirmation({
+                title: "Excluir ficha de personagem?",
+                description: `A ficha de ${character.name} será movida para a lixeira online por 30 dias.`,
+                confirmLabel: "Mover para lixeira",
+                onConfirm: async () => {
+                  try { await trashCharacter(character); } catch (error) {
+                    setStorageNotice(error instanceof Error ? error.message : "Não foi possível mover a ficha para a lixeira.");
+                    setPendingConfirmation(null); return;
+                  }
+                  setCharacters((previous) => {
+                    const remaining = previous.filter((item) => item.id !== character.id);
+                    setActiveCharacter((current) => current?.id === character.id ? remaining[0] || null : current);
+                    setEditingCharacter((current) => current?.id === character.id ? null : current);
+                    return remaining;
+                  });
+                  if (editingCharacter?.id === character.id) setIsCharacterSheetOpen(false);
+                  setPendingConfirmation(null);
+                },
+              });
+            }}
+            onOpenTrash={() => setIsCharacterTrashOpen(true)}
             onOpenBestiary={() => setIsBestiaryOpen(true)}
             onOpenMacroManager={() => setIsMacroOpen(true)}
             onOpenMediaLibrary={() => setIsMediaOpen(true)}
             onOpenNpcFolders={() => setIsNpcFoldersOpen(true)}
             onOpenCampaignManager={() => setIsCampaignOpen(true)}
             onOpenDiceRoller={() => setIsDiceOpen(true)}
-            onOpenSystemSelector={() => setIsMobileSystemOpen(true)}
-            onOpenProfile={() => setIsProfileOpen(true)}
           />
         )}
 
-        {/* View Mode 1: VTT BATTLEMAP & LOCAL DUAL CHAT */}
+        {/* View Mode 1: VTT BATTLEMAP & ONLINE DUAL CHAT */}
         {activeView === "vtt" && (
           <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden">
             {/* Left: Interactive Battlemap with Initiative Bar */}
@@ -747,7 +928,7 @@ export default function App() {
               <div className="flex items-center justify-end gap-2 border-b border-[#38352A] bg-[#15140F] px-3 py-1 text-[10px] font-mono" role="status">
                 <span className={`h-2 w-2 rounded-full ${liveCampaign.status === "online" ? "bg-[#8DAE8F]" : liveCampaign.status === "error" ? "bg-[#C4645A]" : "bg-[#A79C82]"}`} />
                 <span className="text-[#A79C82]">
-                  {liveCampaign.status === "online" ? "Campanha sincronizada" : liveCampaign.status === "connecting" ? "Conectando campanha…" : liveCampaign.status === "error" ? "Modo local — falha ao sincronizar" : "Campanha local"}
+                  {liveCampaign.status === "online" ? "Campanha sincronizada" : liveCampaign.status === "connecting" ? "Conectando campanha…" : liveCampaign.status === "error" ? "Sincronização indisponível — tentando novamente" : "Selecione uma campanha online"}
                 </span>
               </div>
               {/* Initiative Turn Bar */}
@@ -799,7 +980,7 @@ export default function App() {
                     combatants: [...prev.combatants, newInit].sort((a, b) => b.initiativeRoll - a.initiativeRoll),
                   }));
                 }}
-                isGm={isCurrentGm}
+                isGm={canManageInitiative && liveCampaign.isReady}
               />
               </React.Suspense>
 
@@ -808,7 +989,8 @@ export default function App() {
               <BattlemapCanvas
                 mapData={battleMapData}
                 onUpdateMap={setBattleMapData}
-                isGm={isCurrentGm}
+                onMoveToken={!canEditMaps ? liveCampaign.moveToken : undefined}
+                isGm={canEditMaps && liveCampaign.isReady}
                 currentUser={currentUser}
                 characters={characters}
                 activeCharacter={activeCharacter}
@@ -863,6 +1045,19 @@ export default function App() {
       <React.Suspense fallback={<div role="status" className="fixed bottom-4 right-4 z-[110] rounded-xl bg-[#1D1B14] px-4 py-2 text-xs text-[#DFB56C] shadow-xl">Carregando módulo…</div>}>
 
       {/* 1. Character Sheet Modal */}
+      {isCharacterTrashOpen && (
+        <React.Suspense fallback={null}>
+          <CharacterTrashModal
+            isOpen
+            onClose={() => setIsCharacterTrashOpen(false)}
+            onRestore={(character) => {
+              setCharacters((previous) => previous.some((item) => item.id === character.id) ? previous : [character, ...previous]);
+              setActiveCharacter(character);
+            }}
+          />
+        </React.Suspense>
+      )}
+
       {isCharacterSheetOpen && editingCharacter && (
         <CharacterSheetModal
           isOpen
@@ -905,7 +1100,7 @@ export default function App() {
           onSaveMacros={setMacros}
           activeSheet={activeCharacter}
           onExecuteMacro={handleExecuteMacro}
-          isGm={isCurrentGm}
+          isGm={canEditSharedMacros}
         />
       )}
 
@@ -915,9 +1110,17 @@ export default function App() {
         isOpen
         onClose={() => setIsMediaOpen(false)}
         assets={mediaAssets}
-        onSaveAssets={saveMediaAssets}
+        onSaveAssets={(nextAssets) => {
+          const removed = mediaAssets.filter((asset) => !nextAssets.some((next) => next.id === asset.id));
+          saveMediaAssets(nextAssets);
+          for (const asset of removed) {
+            void deleteUserMediaAsset(asset.id).catch((cause) => {
+              setStorageNotice(`Biblioteca online: ${cause instanceof Error ? cause.message : "falha ao excluir imagem."}`);
+            });
+          }
+        }}
         userId={currentUser.id}
-        onUploadFile={activeCampaign?.remoteId ? (file, album) => uploadCampaignMedia(file, activeCampaign.remoteId, album) : undefined}
+        onUploadFile={(file, album) => uploadCampaignMedia(file, activeCampaign?.remoteId, album)}
         onViewHdImage={(url, title) => setLightboxImage({ url, title })}
         />
       )}
@@ -980,7 +1183,7 @@ export default function App() {
       {isProfileOpen && (
         <UserProfileModal
         isOpen
-        onClose={() => setIsProfileOpen(false)}
+        onClose={() => { setIsProfileOpen(false); clearPasswordRecovery(); }}
         user={currentUser}
         onUpdateUser={handleUpdateProfile}
         onLogout={handleLogout}
@@ -989,7 +1192,7 @@ export default function App() {
       </React.Suspense>
 
       {/* 9. RPG System Selector Modal */}
-      <SystemSelectorModal
+      <React.Suspense fallback={null}><SystemSelectorModal
         isOpen={isMobileSystemOpen}
         activeSystem={activeSystem}
         onSelectSystem={(sys) => {
@@ -997,7 +1200,7 @@ export default function App() {
           setIsMobileSystemOpen(false);
         }}
         onClose={() => setIsMobileSystemOpen(false)}
-      />
+      /></React.Suspense>
       <ConfirmDialog
         isOpen={pendingConfirmation !== null}
         title={pendingConfirmation?.title || "Confirmar ação"}

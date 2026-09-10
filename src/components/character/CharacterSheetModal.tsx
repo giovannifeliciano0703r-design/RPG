@@ -365,7 +365,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             <div className="space-y-1 text-xs">
               <p className="font-bold text-[#DFB56C]">Ficha Completa de Personagem</p>
               <p className="text-[#A79C82] text-[11px] leading-relaxed">
-                Você pode editar seus atributos, inventário, magias e rolagens diretamente. Todas as alterações são salvas localmente e sincronizadas com a Mesa VTT.
+                Você pode editar atributos, inventário, magias e rolagens diretamente. As alterações são sincronizadas com sua conta e com a Mesa VTT autorizada.
               </p>
             </div>
 
@@ -431,8 +431,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
             {/* Name */}
             <div>
-              <label className="text-[10px] font-bold text-[#A79C82] uppercase">NOME DE PERSONAGEM</label>
+              <label htmlFor="character-name" className="text-[10px] font-bold text-[#A79C82] uppercase">NOME DE PERSONAGEM</label>
               <input
+                id="character-name"
                 type="text"
                 value={data.name}
                 onChange={(e) => updateField("name", e.target.value)}
@@ -444,8 +445,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Race / Origin */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">RAÇA/LINHAGEM</label>
+                <label htmlFor="character-race" className="text-[10px] font-bold text-[#A79C82] uppercase">RAÇA/LINHAGEM</label>
                 <input
+                  id="character-race"
                   type="text"
                   value={data.race || ""}
                   onChange={(e) => updateField("race", e.target.value)}
@@ -455,8 +457,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">ORIGEM / ANTECEDENTE</label>
+                <label htmlFor="character-origin" className="text-[10px] font-bold text-[#A79C82] uppercase">ORIGEM / ANTECEDENTE</label>
                 <input
+                  id="character-origin"
                   type="text"
                   value={data.origin || data.background || ""}
                   onChange={(e) => {
@@ -472,8 +475,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Age / Size */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">IDADE</label>
+                <label htmlFor="character-age" className="text-[10px] font-bold text-[#A79C82] uppercase">IDADE</label>
                 <input
+                  id="character-age"
                   type="text"
                   value={data.age || ""}
                   onChange={(e) => updateField("age", e.target.value)}
@@ -483,8 +487,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">TAMANHO</label>
+                <label htmlFor="character-size" className="text-[10px] font-bold text-[#A79C82] uppercase">TAMANHO</label>
                 <input
+                  id="character-size"
                   type="text"
                   value={data.sizeCategory || "Médio (2,05m)"}
                   onChange={(e) => updateField("sizeCategory", e.target.value)}
@@ -498,8 +503,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="text-[10px] font-bold text-[#A79C82] uppercase">CLASSE</label>
+                  <label htmlFor="character-class" className="text-[10px] font-bold text-[#A79C82] uppercase">CLASSE</label>
                   <input
+                    id="character-class"
                     type="text"
                     value={data.characterClass}
                     onChange={(e) => updateField("characterClass", e.target.value)}
@@ -508,10 +514,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
                   />
                 </div>
                 <div className="w-20">
-                  <label className="text-[10px] font-bold text-[#A79C82] uppercase">NÍVEL</label>
+                  <label htmlFor="character-level" className="text-[10px] font-bold text-[#A79C82] uppercase">NÍVEL</label>
                   <div className="flex items-center gap-1 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-2 py-1.5">
                     <TrendingUp className="w-3.5 h-3.5 text-[#DFB56C]" />
                     <input
+                      id="character-level"
                       type="number"
                       min="1"
                       max="30"
@@ -525,8 +532,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className="text-[10px] font-bold text-[#A79C82] uppercase">MULTICLASSE</label>
+                  <label htmlFor="character-multiclass" className="text-[10px] font-bold text-[#A79C82] uppercase">MULTICLASSE</label>
                   <input
+                    id="character-multiclass"
                     type="text"
                     value={data.multiclass || ""}
                     onChange={(e) => updateField("multiclass", e.target.value)}
@@ -535,10 +543,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
                   />
                 </div>
                 <div className="w-20">
-                  <label className="text-[10px] font-bold text-[#A79C82] uppercase">NÍVEL</label>
+                  <label htmlFor="character-multiclass-level" className="text-[10px] font-bold text-[#A79C82] uppercase">NÍVEL</label>
                   <div className="flex items-center gap-1 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-2 py-1.5">
                     <TrendingUp className="w-3.5 h-3.5 text-[#DFB56C]" />
                     <input
+                      id="character-multiclass-level"
                       type="number"
                       min="0"
                       max="30"
@@ -561,7 +570,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Pontos de Vida Stepper */}
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase flex items-center gap-1">
+                <label htmlFor="character-current-hp" className="text-[10px] font-bold text-[#A79C82] uppercase flex items-center gap-1">
                   <span>PONTOS DE VIDA</span>
                   <span className="text-[#8DAE8F]">💚</span>
                 </label>
@@ -573,6 +582,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
                     -
                   </button>
                   <input
+                    id="character-current-hp"
                     type="number"
                     value={data.currentHp}
                     onChange={(e) => updateField("currentHp", parseInt(e.target.value) || 0)}
@@ -589,7 +599,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
               {/* Pontos de Vida Temporários Stepper */}
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase flex items-center gap-1">
+                <label htmlFor="character-temp-hp" className="text-[10px] font-bold text-[#A79C82] uppercase flex items-center gap-1">
                   <span>PONTOS DE VIDA TEMPORÁRIOS</span>
                   <span className="text-[#DFB56C]">🛡️</span>
                 </label>
@@ -601,6 +611,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
                     -
                   </button>
                   <input
+                    id="character-temp-hp"
                     type="number"
                     value={data.tempHp}
                     onChange={(e) => updateField("tempHp", parseInt(e.target.value) || 0)}
@@ -619,10 +630,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Peças de Ouro / Vida Máxima / XP */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">PEÇAS DE OURO</label>
+                <label htmlFor="character-gold" className="text-[10px] font-bold text-[#A79C82] uppercase">PEÇAS DE OURO</label>
                 <div className="flex items-center gap-1.5 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-1.5">
                   <Coins className="w-3.5 h-3.5 text-[#DFB56C]" />
                   <input
+                    id="character-gold"
                     type="number"
                     value={data.currency?.gp || 0}
                     onChange={(e) =>
@@ -635,10 +647,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">VIDA MÁXIMA</label>
+                <label htmlFor="character-max-hp" className="text-[10px] font-bold text-[#A79C82] uppercase">VIDA MÁXIMA</label>
                 <div className="flex items-center gap-1.5 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-1.5">
                   <Heart className="w-3.5 h-3.5 text-[#8DAE8F]" />
                   <input
+                    id="character-max-hp"
                     type="number"
                     value={data.maxHpOverride || 30}
                     onChange={(e) => updateField("maxHpOverride", parseInt(e.target.value) || 30)}
@@ -649,10 +662,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">XP OBTIDO</label>
+                <label htmlFor="character-xp" className="text-[10px] font-bold text-[#A79C82] uppercase">XP OBTIDO</label>
                 <div className="flex items-center gap-1.5 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-1.5">
                   <ChevronUp className="w-3.5 h-3.5 text-[#DFB56C]" />
                   <input
+                    id="character-xp"
                     type="number"
                     value={data.xp || 0}
                     onChange={(e) => updateField("xp", parseInt(e.target.value) || 0)}
@@ -672,10 +686,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">CLASSE DE ARMADURA (CA)</label>
+                <label htmlFor="character-armor-class" className="text-[10px] font-bold text-[#A79C82] uppercase">CLASSE DE ARMADURA (CA)</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Shield className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-armor-class"
                     type="number"
                     value={data.equippedArmorBonus ? 10 + data.equippedArmorBonus : derived.totalAC}
                     onChange={(e) => updateField("equippedArmorBonus", (parseInt(e.target.value) || 10) - 10)}
@@ -685,10 +700,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">INICIATIVA</label>
+                <label htmlFor="character-initiative" className="text-[10px] font-bold text-[#A79C82] uppercase">INICIATIVA</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Flag className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-initiative"
                     type="number"
                     value={derived.initiative}
                     onChange={(e) => updateField("initiativeBonus", (parseInt(e.target.value) || 0) - derived.dexMod)}
@@ -705,10 +721,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">MOVIMENTO</label>
+                <label htmlFor="character-speed" className="text-[10px] font-bold text-[#A79C82] uppercase">MOVIMENTO</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Footprints className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-speed"
                     type="text"
                     value={data.speed ? `${data.speed}m / 30ft` : "9m / 30ft"}
                     onChange={(e) => updateField("speed", parseInt(e.target.value) || 9)}
@@ -769,10 +786,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
           <div className="bg-[#1D1B14] border border-[#38352A] rounded-2xl p-4 space-y-3 shadow-md">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">PERCEPÇÃO PASSIVA</label>
+                <label htmlFor="character-passive-perception" className="text-[10px] font-bold text-[#A79C82] uppercase">PERCEPÇÃO PASSIVA</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Compass className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-passive-perception"
                     type="number"
                     value={derived.passivePerception}
                     onChange={(e) => updateField("passivePerceptionBonus", parseInt(e.target.value) || 10)}
@@ -783,10 +801,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">BÔNUS DE PROFICIÊNCIA</label>
+                <label htmlFor="character-proficiency" className="text-[10px] font-bold text-[#A79C82] uppercase">BÔNUS DE PROFICIÊNCIA</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Star className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-proficiency"
                     type="number"
                     value={derived.proficiencyBonus}
                     onChange={(e) => updateField("proficiencyBonusOverride", parseInt(e.target.value) || 2)}
@@ -796,10 +815,11 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">INSPIRAÇÃO</label>
+                <label htmlFor="character-inspiration" className="text-[10px] font-bold text-[#A79C82] uppercase">INSPIRAÇÃO</label>
                 <div className="flex items-center gap-2 mt-1 bg-[#15140F] border border-[#38352A] rounded-xl px-3 py-2">
                   <Sparkles className="w-4 h-4 text-[#DFB56C]" />
                   <input
+                    id="character-inspiration"
                     type="text"
                     value={data.inspiration ? "Ativa ⭐" : "Inativa"}
                     onClick={() => updateField("inspiration", !data.inspiration)}
@@ -813,8 +833,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Languages, Armor Training, Tools */}
             <div className="space-y-3 pt-2">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">IDIOMAS CONHECIDOS</label>
+                <label htmlFor="character-languages" className="text-[10px] font-bold text-[#A79C82] uppercase">IDIOMAS CONHECIDOS</label>
                 <textarea
+                  id="character-languages"
                   value={data.languages || "Língua tribal (Nortista)\nLíngua imperial (comum)"}
                   onChange={(e) => updateField("languages", e.target.value)}
                   rows={2}
@@ -823,8 +844,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">TREINAMENTO EM ARMAS E ARMADURAS</label>
+                <label htmlFor="character-training" className="text-[10px] font-bold text-[#A79C82] uppercase">TREINAMENTO EM ARMAS E ARMADURAS</label>
                 <textarea
+                  id="character-training"
                   value={data.armorAndWeaponTraining || "Armaduras leves, médias e escudos. Armas simples e marciais."}
                   onChange={(e) => updateField("armorAndWeaponTraining", e.target.value)}
                   rows={2}
@@ -833,8 +855,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">FERRAMENTAS, INSTRUMENTOS E JOGOS</label>
+                <label htmlFor="character-tools" className="text-[10px] font-bold text-[#A79C82] uppercase">FERRAMENTAS, INSTRUMENTOS E JOGOS</label>
                 <textarea
+                  id="character-tools"
                   value={data.toolsAndInstruments || "Kit de herbalismo, dados de osso."}
                   onChange={(e) => updateField("toolsAndInstruments", e.target.value)}
                   rows={2}
@@ -853,8 +876,8 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             <div className="grid grid-cols-2 gap-4">
               {/* Sucessos */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-[#8DAE8F] uppercase">SUCESSOS</label>
-                <div className="flex items-center gap-3">
+                <p id="death-save-success-label" className="text-[10px] font-bold text-[#8DAE8F] uppercase">SUCESSOS</p>
+                <div className="flex items-center gap-3" role="group" aria-labelledby="death-save-success-label">
                   {[1, 2, 3].map((num) => {
                     const active = (data.deathSaves?.successes || 0) >= num;
                     return (
@@ -881,8 +904,8 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
               {/* Falhas */}
               <div className="space-y-2">
-                <label className="text-[10px] font-bold text-[#C4645A] uppercase">FALHAS</label>
-                <div className="flex items-center gap-3">
+                <p id="death-save-failure-label" className="text-[10px] font-bold text-[#C4645A] uppercase">FALHAS</p>
+                <div className="flex items-center gap-3" role="group" aria-labelledby="death-save-failure-label">
                   {[1, 2, 3].map((num) => {
                     const active = (data.deathSaves?.failures || 0) >= num;
                     return (
@@ -1013,7 +1036,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Equipamentos Section */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">EQUIPAMENTOS DE COMBATE</label>
+                <h4 className="text-[10px] font-bold text-[#A79C82] uppercase">EQUIPAMENTOS DE COMBATE</h4>
                 <button
                   onClick={() => setShowAddEquip(!showAddEquip)}
                   className="text-xs font-bold text-[#8DAE8F] hover:underline flex items-center gap-1 cursor-pointer"
@@ -1117,7 +1140,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Itens Diversos Section */}
             <div className="space-y-2 pt-2 border-t border-[#38352A]">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">ITENS DIVERSOS & CONSUMÍVEIS</label>
+                <h4 className="text-[10px] font-bold text-[#A79C82] uppercase">ITENS DIVERSOS & CONSUMÍVEIS</h4>
                 <button
                   onClick={() => setShowAddDiverse(!showAddDiverse)}
                   className="text-xs font-bold text-[#8DAE8F] hover:underline flex items-center gap-1 cursor-pointer"
@@ -1192,7 +1215,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
             {/* Equipamentos Slots (Mão Esquerda, Direita, Armadura, Acessórios) */}
             <div className="space-y-2 pt-2 border-t border-[#38352A]">
-              <label className="text-[10px] font-bold text-[#DFB56C] uppercase">SLOTS EQUIPADOS</label>
+              <h4 className="text-[10px] font-bold text-[#DFB56C] uppercase">SLOTS EQUIPADOS</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { label: "MÃO ESQUERDA", key: "leftHand", placeholder: "Escudo / Adaga" },
@@ -1229,7 +1252,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Habilidades Adicionais */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">HABILIDADES ADICIONAIS</label>
+                <h4 className="text-[10px] font-bold text-[#A79C82] uppercase">HABILIDADES ADICIONAIS</h4>
                 <button
                   onClick={() => setShowAddFeature(!showAddFeature)}
                   className="text-xs font-bold text-[#8DAE8F] hover:underline flex items-center gap-1 cursor-pointer"
@@ -1318,8 +1341,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
             {/* Spellcasting Attributes & Modifiers */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-[#38352A]">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">ATRIBUTO DE CONJURAÇÃO</label>
+                <label htmlFor="character-spellcasting-ability" className="text-[10px] font-bold text-[#A79C82] uppercase">ATRIBUTO DE CONJURAÇÃO</label>
                 <select
+                  id="character-spellcasting-ability"
                   value={data.spellcastingAbility || "int"}
                   onChange={(e) => updateField("spellcastingAbility", e.target.value as "int" | "wis" | "cha")}
                   className="w-full mt-1 px-3 py-2 bg-[#15140F] border border-[#38352A] rounded-xl text-xs text-[#EFE8D8] font-bold"
@@ -1331,8 +1355,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">BÔNUS DE CONJURAÇÃO</label>
+                <label htmlFor="character-spellcasting-bonus" className="text-[10px] font-bold text-[#A79C82] uppercase">BÔNUS DE CONJURAÇÃO</label>
                 <input
+                  id="character-spellcasting-bonus"
                   type="number"
                   value={derived.spellAttackBonus}
                   onChange={(e) => updateField("spellcastingBonus", parseInt(e.target.value) || 0)}
@@ -1343,7 +1368,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
             {/* Spell Slots Steppers */}
             <div className="space-y-2 pt-2 border-t border-[#38352A]">
-              <label className="text-[10px] font-bold text-[#DFB56C] uppercase">ESPAÇOS DE MAGIA</label>
+              <h4 className="text-[10px] font-bold text-[#DFB56C] uppercase">ESPAÇOS DE MAGIA</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                 {[
                   { label: "ESPAÇOS DE TRUQUES", level: 0 },
@@ -1406,8 +1431,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
 
             <div className="space-y-3">
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">MISSÕES</label>
+                <label htmlFor="character-missions" className="text-[10px] font-bold text-[#A79C82] uppercase">MISSÕES</label>
                 <textarea
+                  id="character-missions"
                   value={data.notesStructure?.missions || ""}
                   onChange={(e) =>
                     updateField("notesStructure", {
@@ -1422,8 +1448,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">ALIANÇAS, ORGANIZAÇÕES ETC.</label>
+                <label htmlFor="character-alliances" className="text-[10px] font-bold text-[#A79C82] uppercase">ALIANÇAS, ORGANIZAÇÕES ETC.</label>
                 <textarea
+                  id="character-alliances"
                   value={data.notesStructure?.alliances || ""}
                   onChange={(e) =>
                     updateField("notesStructure", {
@@ -1438,8 +1465,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">LEMBRETES</label>
+                <label htmlFor="character-reminders" className="text-[10px] font-bold text-[#A79C82] uppercase">LEMBRETES</label>
                 <textarea
+                  id="character-reminders"
                   value={data.notesStructure?.reminders || ""}
                   onChange={(e) =>
                     updateField("notesStructure", {
@@ -1454,8 +1482,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-[#A79C82] uppercase">OUTRAS NOTAS</label>
+                <label htmlFor="character-other-notes" className="text-[10px] font-bold text-[#A79C82] uppercase">OUTRAS NOTAS</label>
                 <textarea
+                  id="character-other-notes"
                   value={data.notesStructure?.otherNotes || data.notes || ""}
                   onChange={(e) => {
                     updateField("notesStructure", {

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mestre Arcano">
+  <rect width="64" height="64" rx="14" fill="#15140f"/>
+  <rect x="4" y="4" width="56" height="56" rx="11" fill="none" stroke="#7a2e27" stroke-width="3"/>
+  <path d="M32 11 37 25 52 20 41 32 52 44 37 39 32 53 27 39 12 44 23 32 12 20 27 25Z" fill="#dfb56c"/>
+  <circle cx="32" cy="32" r="7" fill="#7a2e27" stroke="#efe8d8" stroke-width="2"/>
+</svg>

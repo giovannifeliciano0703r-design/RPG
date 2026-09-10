@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import { AlertTriangle, Info } from "lucide-react";
 
+const openDialogs: HTMLDivElement[] = [];
+
 interface DialogBaseProps {
   isOpen: boolean;
   title: string;
@@ -34,15 +36,44 @@ function DialogFrame({
 
   useEffect(() => {
     if (!isOpen) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    dialogRef.current?.focus();
+    openDialogs.push(dialog);
+    dialog.focus();
+    const isTopDialog = () => openDialogs.at(-1) === dialog;
+    const onFocusIn = (event: FocusEvent) => {
+      if (isTopDialog() && !dialog.contains(event.target as Node)) dialog.focus();
+    };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseRef.current();
+      if (!isTopDialog() || event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        onCloseRef.current();
+      }
+      if (event.key === "Tab") {
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+          'button, a[href], input, select, textarea, [tabindex]',
+        )).filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') &&
+          !element.closest('[hidden], [inert], [aria-hidden="true"]') &&
+          getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden');
+        if (!focusable.length) { event.preventDefault(); return; }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const focused = document.activeElement as HTMLElement;
+        if (event.shiftKey && (focused === first || !focusable.includes(focused))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (focused === last || !focusable.includes(focused))) { event.preventDefault(); first.focus(); }
+      }
     };
     document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocusIn);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
+      document.removeEventListener("focusin", onFocusIn);
+      const wasTop = isTopDialog();
+      openDialogs.splice(openDialogs.indexOf(dialog), 1);
+      if (wasTop && previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [isOpen]);
 
@@ -50,7 +81,8 @@ function DialogFrame({
   const Icon = tone === "warning" ? AlertTriangle : Info;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <button type="button" tabIndex={-1} aria-label="Fechar diálogo" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
         ref={dialogRef}
         role="alertdialog"
@@ -58,8 +90,7 @@ function DialogFrame({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
-        onMouseDown={(event) => event.stopPropagation()}
-        className="w-full max-w-md rounded-2xl border border-[#5C5641] bg-[#1D1B14] p-5 text-[#EFE8D8] shadow-2xl outline-none"
+        className="relative w-full max-w-md rounded-2xl border border-[#5C5641] bg-[#1D1B14] p-5 text-[#EFE8D8] shadow-2xl outline-none"
       >
         <div className="flex gap-3">
           <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${tone === "warning" ? "text-[#C4645A]" : "text-[#DFB56C]"}`} />

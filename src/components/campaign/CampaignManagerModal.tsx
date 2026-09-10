@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   X,
   Crown,
@@ -12,9 +12,27 @@ import {
   Sparkles,
   Settings,
   Flame,
+  LogOut,
+  History,
 } from "lucide-react";
 import { Campaign, CampaignMember, CampaignRole, CoGmPermissions, UserProfile } from "../../types";
-import { NoticeDialog } from "../ui/Dialog";
+import { ConfirmDialog, NoticeDialog } from "../ui/Dialog";
+import {
+  createCampaignInvite,
+  createRemoteCampaign,
+  deleteRemoteCampaign,
+  joinCampaignByInvite,
+  loadRemoteCampaign,
+  loadCampaignManagementRecords,
+  removeRemoteCampaignMember,
+  revokeCampaignInvite,
+  subscribeToCampaignRoster,
+  updateRemoteMemberAccess,
+  type CampaignAuditRecord,
+  type CampaignInviteRecord,
+} from "../../services/supabaseCampaigns";
+import { supabase } from "../../lib/supabase";
+import { getCampaignPermissions } from "../../domain/campaignPermissions";
 
 interface CampaignManagerModalProps {
   isOpen: boolean;
@@ -25,6 +43,15 @@ interface CampaignManagerModalProps {
   onSelectCampaign: (campaign: Campaign) => void;
   onSaveCampaigns: (campaigns: Campaign[]) => void;
 }
+
+const AUDIT_LABELS: Record<string, string> = {
+  "campaign.invite.created": "Convite criado",
+  "campaign.invite.revoked": "Convite revogado",
+  "campaign.member.joined": "Participante entrou",
+  "campaign.member.left": "Participante saiu",
+  "campaign.member.removed": "Participante removido",
+  "campaign.member.access_updated": "Papel ou permissões alterados",
+};
 
 export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   isOpen,
@@ -41,18 +68,80 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState("");
   const [notice, setNotice] = useState<{ title: string; description: string } | null>(null);
+  const [isWorking, setIsWorking] = useState(false);
+  const [memberRemoval, setMemberRemoval] = useState<CampaignMember | null>(null);
+  const [confirmCampaignDeletion, setConfirmCampaignDeletion] = useState(false);
+  const [inviteRecords, setInviteRecords] = useState<CampaignInviteRecord[]>([]);
+  const [auditRecords, setAuditRecords] = useState<CampaignAuditRecord[]>([]);
+  const campaignsRef = useRef(campaigns);
+  const onSaveRef = useRef(onSaveCampaigns);
+  const onSelectRef = useRef(onSelectCampaign);
+  campaignsRef.current = campaigns;
+  onSaveRef.current = onSaveCampaigns;
+  onSelectRef.current = onSelectCampaign;
+  const campaignPermissions = getCampaignPermissions(activeCampaign, currentUser.id);
+
+  const showError = (title: string, cause: unknown) => setNotice({
+    title,
+    description: cause instanceof Error ? cause.message : "Não foi possível concluir. Tente novamente.",
+  });
+
+  const saveUpdatedCampaign = useCallback((campaign: Campaign) => {
+    const currentCampaigns = campaignsRef.current;
+    const exists = currentCampaigns.some((item) => item.id === campaign.id);
+    onSaveRef.current(exists ? currentCampaigns.map((item) => item.id === campaign.id ? campaign : item) : [campaign, ...currentCampaigns]);
+    onSelectRef.current(campaign);
+  }, []);
+
+  useEffect(() => {
+    const remoteId = activeCampaign?.remoteId;
+    const client = supabase;
+    if (!isOpen || !remoteId || !client) return;
+    let cancelled = false;
+    let refreshTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void loadRemoteCampaign(remoteId, activeCampaign.inviteCode)
+        .then((campaign) => { if (!cancelled) saveUpdatedCampaign(campaign); })
+        .catch(() => undefined), 150);
+    };
+    refresh();
+    const channel = subscribeToCampaignRoster(remoteId, refresh);
+    return () => { cancelled = true; window.clearTimeout(refreshTimer); if (channel) void client.removeChannel(channel); };
+  }, [activeCampaign?.inviteCode, activeCampaign?.remoteId, isOpen, saveUpdatedCampaign]);
+
+  useEffect(() => {
+    const remoteId = activeCampaign?.remoteId;
+    const isManager = campaignPermissions.isOwner || activeCampaign?.members.some((member) => member.userId === currentUser.id && member.role === "CO_GM");
+    if (!isOpen || !remoteId || !isManager) { setInviteRecords([]); setAuditRecords([]); return; }
+    let cancelled = false;
+    void loadCampaignManagementRecords(remoteId).then((records) => {
+      if (!cancelled) { setInviteRecords(records.invites); setAuditRecords(records.audit); }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [activeCampaign?.members, activeCampaign?.remoteId, campaignPermissions.isOwner, currentUser.id, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleCreateCampaign = () => {
+  const handleCreateCampaign = async () => {
     if (!newCampaignName.trim()) return;
-
-    const newCamp: Campaign = {
-      id: `camp-${Date.now()}`,
-      inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+    setIsWorking(true);
+    try {
+      const draft = {
+        name: newCampaignName.trim(),
+        description: newCampaignDesc.trim() || "Uma jornada épica pelo multiverso arcano.",
+        system: currentUser.favoriteSystem || "Dungeons & Dragons (D&D)",
+        isPrivate: false,
+      } as const;
+      const remoteId = await createRemoteCampaign(draft);
+      const inviteCode = await createCampaignInvite(remoteId);
+      const newCamp: Campaign = {
+      id: `remote-${remoteId}`,
+      remoteId,
+      inviteCode,
       name: newCampaignName.trim(),
-      description: newCampaignDesc.trim() || "Uma jornada épica pelo multiverso arcano.",
-      system: currentUser.favoriteSystem || "Dungeons & Dragons (D&D)",
+      description: draft.description,
+      system: draft.system,
       gmUserId: currentUser.id,
       gmUserName: currentUser.name,
       maxCharactersPerPlayer: 2,
@@ -72,45 +161,31 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       updatedAt: Date.now(),
     };
 
-    const updated = [newCamp, ...campaigns];
-    onSaveCampaigns(updated);
-    onSelectCampaign(newCamp);
-    setNewCampaignName("");
-    setNewCampaignDesc("");
-  };
-
-  const handleJoinByCode = () => {
-    if (!joinCodeInput.trim()) return;
-    const target = campaigns.find((c) => c.inviteCode.toLowerCase() === joinCodeInput.trim().toLowerCase());
-    if (target) {
-      // Add member if not already joined
-      const alreadyMember = target.members.some((m) => m.userId === currentUser.id);
-      if (!alreadyMember) {
-        const newMember: CampaignMember = {
-          userId: currentUser.id,
-          userName: currentUser.name,
-          userAvatar: currentUser.avatar || "Scroll",
-          role: "PLAYER",
-          assignedCharacterIds: [],
-          joinedAt: Date.now(),
-        };
-        const updatedTarget = { ...target, members: [...target.members, newMember] };
-        const updatedList = campaigns.map((c) => (c.id === target.id ? updatedTarget : c));
-        onSaveCampaigns(updatedList);
-        onSelectCampaign(updatedTarget);
-      } else {
-        onSelectCampaign(target);
-      }
-      setJoinCodeInput("");
-    } else {
-      setNotice({
-        title: "Campanha não encontrada",
-        description: "Confira o código de convite e tente novamente.",
-      });
+      saveUpdatedCampaign(newCamp);
+      setNewCampaignName("");
+      setNewCampaignDesc("");
+    } catch (cause) {
+      showError("Não foi possível criar a campanha", cause);
+    } finally {
+      setIsWorking(false);
     }
   };
 
-  const handleUpdateMemberRole = (campaign: Campaign, targetUserId: string, newRole: CampaignRole) => {
+  const handleJoinByCode = async () => {
+    if (!joinCodeInput.trim()) return;
+    setIsWorking(true);
+    try {
+      const target = await joinCampaignByInvite(joinCodeInput);
+      saveUpdatedCampaign(target);
+      setJoinCodeInput("");
+    } catch (cause) {
+      showError("Campanha não encontrada", cause);
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const handleUpdateMemberRole = async (campaign: Campaign, targetUserId: string, newRole: CampaignRole) => {
     // Strict security rule: No one can demote the original GM
     if (targetUserId === campaign.gmUserId && newRole !== "GM") {
       setNotice({
@@ -141,12 +216,17 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       return m;
     });
 
-    const updatedCampaign = { ...campaign, members: updatedMembers, updatedAt: Date.now() };
-    const updatedList = campaigns.map((c) => (c.id === campaign.id ? updatedCampaign : c));
-    onSaveCampaigns(updatedList);
+    if (!campaign.remoteId) return showError("Campanha ainda não está online", new Error("Aguarde a sincronização e tente novamente."));
+    setIsWorking(true);
+    try {
+      const member = updatedMembers.find((item) => item.userId === targetUserId);
+      await updateRemoteMemberAccess(campaign.remoteId, targetUserId, newRole, member?.coGmPermissions);
+      saveUpdatedCampaign({ ...campaign, members: updatedMembers, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível alterar o papel", cause); }
+    finally { setIsWorking(false); }
   };
 
-  const handleToggleCoGmPerm = (
+  const handleToggleCoGmPerm = async (
     campaign: Campaign,
     targetUserId: string,
     permKey: keyof CoGmPermissions
@@ -164,12 +244,71 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
       return m;
     });
 
-    const updatedCampaign = { ...campaign, members: updatedMembers, updatedAt: Date.now() };
-    const updatedList = campaigns.map((c) => (c.id === campaign.id ? updatedCampaign : c));
-    onSaveCampaigns(updatedList);
+    if (!campaign.remoteId) return;
+    const member = updatedMembers.find((item) => item.userId === targetUserId);
+    setIsWorking(true);
+    try {
+      await updateRemoteMemberAccess(campaign.remoteId, targetUserId, "CO_GM", member?.coGmPermissions);
+      saveUpdatedCampaign({ ...campaign, members: updatedMembers, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível alterar a permissão", cause); }
+    finally { setIsWorking(false); }
   };
 
   const isCurrentGm = activeCampaign?.gmUserId === currentUser.id;
+  const { canKickPlayers, canInvitePlayers } = campaignPermissions;
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    setIsWorking(true);
+    try {
+      await revokeCampaignInvite(inviteId);
+      setInviteRecords((previous) => previous.map((invite) => invite.id === inviteId ? { ...invite, revoked_at: new Date().toISOString() } : invite));
+    } catch (cause) { showError("Não foi possível revogar o convite", cause); }
+    finally { setIsWorking(false); }
+  };
+
+  const handleCreateInvite = async () => {
+    if (!activeCampaign?.remoteId || !canInvitePlayers) return;
+    setIsWorking(true);
+    try {
+      const inviteCode = await createCampaignInvite(activeCampaign.remoteId);
+      const records = await loadCampaignManagementRecords(activeCampaign.remoteId);
+      setInviteRecords(records.invites);
+      setAuditRecords(records.audit);
+      saveUpdatedCampaign({ ...activeCampaign, inviteCode, updatedAt: Date.now() });
+    } catch (cause) { showError("Não foi possível criar um convite", cause); }
+    finally { setIsWorking(false); }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!activeCampaign?.remoteId || !memberRemoval) return;
+    const target = memberRemoval;
+    setMemberRemoval(null); setIsWorking(true);
+    try {
+      await removeRemoteCampaignMember(activeCampaign.remoteId, target.userId);
+      if (target.userId === currentUser.id) {
+        const remaining = campaigns.filter((campaign) => campaign.id !== activeCampaign.id);
+        onSaveCampaigns(remaining);
+        if (remaining[0]) onSelectCampaign(remaining[0]);
+        onClose();
+      } else {
+        saveUpdatedCampaign({ ...activeCampaign, members: activeCampaign.members.filter((member) => member.userId !== target.userId), updatedAt: Date.now() });
+      }
+    } catch (cause) { showError("Não foi possível remover o participante", cause); }
+    finally { setIsWorking(false); }
+  };
+
+  const handleDeleteCampaign = async () => {
+    if (!activeCampaign?.remoteId || !isCurrentGm) return;
+    setConfirmCampaignDeletion(false); setIsWorking(true);
+    try {
+      await deleteRemoteCampaign(activeCampaign.remoteId);
+      const remaining = campaigns.filter((campaign) => campaign.id !== activeCampaign.id);
+      onSaveCampaigns(remaining);
+      if (remaining[0]) onSelectCampaign(remaining[0]);
+      onClose();
+    } catch (cause) { showError("Não foi possível excluir a campanha", cause); }
+    finally { setIsWorking(false); }
+  };
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Gerenciador de campanhas" className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-hidden">
@@ -182,7 +321,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-serif font-bold text-[#EFE8D8] flex items-center gap-2">
-                <span>Campanhas locais & Permissões</span>
+                <span>Campanhas online & Permissões</span>
                 {activeCampaign && (
                   <span className="text-xs font-mono text-[#DFB56C] bg-[#DFB56C]/10 border border-[#DFB56C]/30 px-2 py-0.5 rounded">
                     Ativa: {activeCampaign.name}
@@ -222,6 +361,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                   />
                   <button
                     onClick={handleJoinByCode}
+                    disabled={isWorking}
                     className="px-3 py-1 bg-[#DFB56C] text-[#15140F] font-bold text-xs rounded-lg hover:bg-[#b08635]"
                   >
                     Entrar
@@ -274,6 +414,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
               />
               <button
                 onClick={handleCreateCampaign}
+                disabled={isWorking || !newCampaignName.trim()}
                 className="w-full py-1.5 bg-[#DFB56C] text-[#15140F] font-bold text-xs rounded-lg hover:bg-[#b08635]"
               >
                 + Criar como Mestre (GM)
@@ -294,23 +435,34 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {isCurrentGm && activeCampaign.inviteCode && <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1.5 bg-[#15140F] border border-[#38352A] px-3 py-1.5 rounded-xl text-xs font-mono">
                       <span className="text-[#A79C82]">Código:</span>
                       <strong className="text-[#DFB56C] tracking-widest">{activeCampaign.inviteCode}</strong>
                       <button
+                        type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(activeCampaign.inviteCode);
                           setCopiedCode(true);
                           setTimeout(() => setCopiedCode(false), 2000);
                         }}
                         className="text-[#A79C82] hover:text-[#EFE8D8] ml-1"
+                        aria-label="Copiar código de convite"
                         title="Copiar código de convite"
                       >
                         {copiedCode ? <Check className="w-3.5 h-3.5 text-[#8DAE8F]" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
-                  </div>
+                  </div>}
+                  {!isCurrentGm ? (
+                    <button type="button" disabled={isWorking} onClick={() => { const ownMember = activeCampaign.members.find((member) => member.userId === currentUser.id); if (ownMember) setMemberRemoval(ownMember); }} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] flex items-center gap-1.5 disabled:opacity-50">
+                      <LogOut className="w-3.5 h-3.5" /> Sair da campanha
+                    </button>
+                  ) : (
+                    <button type="button" disabled={isWorking} onClick={() => setConfirmCampaignDeletion(true)} className="px-3 py-2 border border-[#7A2E27] rounded-lg text-xs text-[#C4645A] flex items-center gap-1.5 disabled:opacity-50">
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir campanha
+                    </button>
+                  )}
                 </div>
 
                 {/* Member Roster & Roles */}
@@ -356,6 +508,7 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                             <div className="flex items-center gap-2">
                               <select
                                 value={member.role}
+                                disabled={isWorking}
                                 onChange={(e) =>
                                   handleUpdateMemberRole(activeCampaign, member.userId, e.target.value as CampaignRole)
                                 }
@@ -365,7 +518,10 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                                 <option value="CO_GM">Co-GM (Auxiliar)</option>
                                 <option value="SPECTATOR">Espectador</option>
                               </select>
+                              <button type="button" disabled={isWorking} onClick={() => setMemberRemoval(member)} aria-label={`Remover ${member.userName} da campanha`} title="Remover participante" className="p-1.5 text-[#C4645A] hover:bg-[#7A2E27]/20 rounded-lg disabled:opacity-50"><Trash2 className="w-4 h-4" /></button>
                             </div>
+                          ) : canKickPlayers && member.userId !== activeCampaign.gmUserId && member.userId !== currentUser.id ? (
+                            <button type="button" disabled={isWorking} onClick={() => setMemberRemoval(member)} className="px-2.5 py-1 border border-[#7A2E27] rounded-lg text-[11px] text-[#C4645A] disabled:opacity-50">Remover</button>
                           ) : (
                             <span className="font-mono text-xs text-[#A79C82]">{member.role}</span>
                           )}
@@ -421,6 +577,30 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
                     </div>
                   </div>
                 )}
+
+                {(campaignPermissions.isOwner || activeCampaign.members.some((member) => member.userId === currentUser.id && member.role === "CO_GM")) ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <section className="p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl space-y-2" aria-labelledby="invite-history-title">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 id="invite-history-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase">Convites recentes</h4>
+                        {canInvitePlayers ? <button type="button" disabled={isWorking} onClick={() => void handleCreateInvite()} className="rounded-lg border border-[#6A5730] px-2 py-1 text-[11px] font-bold text-[#DFB56C] hover:bg-[#DFB56C]/10 disabled:opacity-50">+ Novo convite</button> : null}
+                      </div>
+                      {inviteRecords.length === 0 ? <p className="text-xs text-[#A79C82]">Nenhum convite registrado.</p> : inviteRecords.map((invite) => {
+                        const inactive = Boolean(invite.revoked_at) || new Date(invite.expires_at).getTime() <= Date.now() || invite.uses >= invite.max_uses;
+                        return <div key={invite.id} className="flex items-center justify-between gap-2 rounded-lg border border-[#38352A] p-2 text-[11px]">
+                          <div><strong className="font-mono text-[#EFE8D8]">{invite.code}</strong><p className="text-[#A79C82]">{invite.uses}/{invite.max_uses} usos • {inactive ? "inativo" : `vence em ${new Date(invite.expires_at).toLocaleDateString()}`}</p></div>
+                          {!inactive && canInvitePlayers ? <button type="button" disabled={isWorking} onClick={() => void handleRevokeInvite(invite.id)} className="text-[#C4645A] disabled:opacity-50">Revogar</button> : null}
+                        </div>;
+                      })}
+                    </section>
+                    <section className="p-4 bg-[#1C1A14] border border-[#38352A] rounded-2xl space-y-2" aria-labelledby="audit-title">
+                      <h4 id="audit-title" className="text-xs font-mono font-bold text-[#DFB56C] uppercase flex items-center gap-1.5"><History className="w-3.5 h-3.5" /> Atividade de segurança</h4>
+                      <div className="max-h-56 overflow-y-auto space-y-1.5">
+                        {auditRecords.length === 0 ? <p className="text-xs text-[#A79C82]">Nenhuma atividade registrada.</p> : auditRecords.map((event) => <div key={event.id} className="rounded-lg border border-[#38352A] p-2 text-[11px]"><strong className="text-[#EFE8D8]">{AUDIT_LABELS[event.action] || event.action}</strong><p className="text-[#A79C82]">{new Date(event.created_at).toLocaleString()}</p></div>)}
+                      </div>
+                    </section>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-[#A79C82]">
@@ -437,6 +617,24 @@ export const CampaignManagerModal: React.FC<CampaignManagerModalProps> = ({
         title={notice?.title || "Aviso"}
         description={notice?.description || ""}
         onClose={() => setNotice(null)}
+      />
+      <ConfirmDialog
+        isOpen={memberRemoval !== null}
+        title={memberRemoval?.userId === currentUser.id ? "Sair desta campanha?" : `Remover ${memberRemoval?.userName || "participante"}?`}
+        description={memberRemoval?.userId === currentUser.id ? "Você deixará de acessar a mesa, o chat e os dados compartilhados desta campanha." : "A pessoa perderá acesso à mesa e poderá voltar somente com um novo convite válido."}
+        confirmLabel={memberRemoval?.userId === currentUser.id ? "Sair da campanha" : "Remover participante"}
+        destructive
+        onConfirm={() => void handleRemoveMember()}
+        onClose={() => setMemberRemoval(null)}
+      />
+      <ConfirmDialog
+        isOpen={confirmCampaignDeletion}
+        title={`Excluir ${activeCampaign?.name || "esta campanha"}?`}
+        description="Esta ação exclui permanentemente a campanha, participantes, mensagens, mapas e dados compartilhados. As fichas pessoais de cada conta não serão removidas."
+        confirmLabel="Excluir campanha"
+        destructive
+        onConfirm={() => void handleDeleteCampaign()}
+        onClose={() => setConfirmCampaignDeletion(false)}
       />
     </div>
   );
